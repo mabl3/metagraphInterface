@@ -15,9 +15,6 @@ endif()
 # tell cmake where to put the compiled binaries (usually in build/ dir)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-# for telling the unit tests where the testfiles are
-#set(SEEDFINDING_TESTFILELOCATION "${CMAKE_CURRENT_SOURCE_DIR}/testdata")
-
 # find libraries
 # create interface library targets from other libs
 add_library(catch2 INTERFACE)
@@ -32,23 +29,27 @@ target_include_directories(catch2 SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/
 #target_include_directories(cxx-prettyprint SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/cxx-prettyprint")
 #add_library(hopscotch-map INTERFACE)
 #target_include_directories(hopscotch-map SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/hopscotch-map/include")
-#add_library(json INTERFACE)
-#target_include_directories(json SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/json/single_include")
+add_library(json INTERFACE)
+target_include_directories(json SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/json/single_include")
 
 # make targets in subdirs visible
 add_subdirectory(lib/mabl3)
 
 # the main program
 add_executable(testMetagraphInterface src/main.cpp
-                                      src/testMetagraphInterface.cpp)
+                                      src/testMetagraphInterface.cpp
+                                      testdata/loadExpectedTestdata.h)
 
-target_include_directories(testMetagraphInterface PRIVATE "${SMAKE_CURRENT_SOURCE_DIR}/src")
+target_include_directories(testMetagraphInterface PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+                                                  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/testdata")
 
-# set testfile location (sets -DSEEDFINDING_TESTFILEPATH=\"/home/.../testfile\" that is then used in LoadTestdata.h)
-#target_compile_definitions(testMetagraphInterface PRIVATE SEEDFINDING_TESTFILEPATH="${SEEDFINDING_TESTFILELOCATION}")
+
+# set testfile location (sets -DTESTDATAPATH=\"/home/.../testdata\" that is then used in loadExpectedTestdata.h)
+target_compile_definitions(testMetagraphInterface PRIVATE TESTDATAPATH="${CMAKE_CURRENT_SOURCE_DIR}/testdata")
 
 # link sources
 target_link_libraries(testMetagraphInterface PRIVATE metagraphInterface)
 
-# link catch
+# link third party libraries
 target_link_libraries(testMetagraphInterface PRIVATE catch2)
+target_link_libraries(testMetagraphInterface PRIVATE json)

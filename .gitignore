@@ -37,3 +37,7 @@ metagraphInterface.files
 metagraphInterface.includes
 
 test/build
+
+test/testdata/*
+!test/testdata/generateTestdata.py
+!test/testdata/loadExpectedTestdata.h
