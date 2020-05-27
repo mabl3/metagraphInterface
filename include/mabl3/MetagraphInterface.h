@@ -5,7 +5,6 @@
 #include <iostream>
 #include <unordered_set>
 
-#include "prettyprint.hpp"
 #include <tbb/concurrent_queue.h>
 #include <graph/annotated_dbg.hpp>
 #include <graph/representation/succinct/dbg_succinct.hpp>
