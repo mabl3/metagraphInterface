@@ -1,0 +1,112 @@
+project(metagraphInterface)
+
+# find metagraph
+set(METAGRAPH_PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../projects2014-metagenome" CACHE PATH "Metagraph project root directory")
+message("METAGRAPH_PROJECT_ROOT: ${METAGRAPH_PROJECT_ROOT}")
+set(METAGRAPH_DIR "${METAGRAPH_PROJECT_ROOT}/metagraph")
+message("METAGRAPH_DIR: ${METAGRAPH_DIR}")
+message("Searching Metagraph in ${METAGRAPH_DIR}")
+if (${METAGRAPH_PROJECT_ROOT} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/../projects2014-metagenome")
+    message("If this is not successful, point to the right project directory with -DMETAGRAPH_PROJECT_ROOT")
+endif()
+
+# find metagraph library file
+set(METAGRAPH_LIB METAGRAPH_LIB-NOTFOUND)
+find_library(METAGRAPH_LIB
+             NAMES metagraph-core
+             PATHS "${METAGRAPH_DIR}/build"
+             NO_DEFAULT_PATH)
+if (METAGRAPH_LIB)
+    message("Found metagraph: ${METAGRAPH_LIB}")
+else()
+    message("Metagraph not found")
+endif()
+
+# get graph type
+file(READ "${METAGRAPH_DIR}/build/compile_commands.json" METAGRAPH_COMPILE_COMMAND_JSON)
+string(REGEX MATCH "-D_[A-Z_]+_GRAPH" METAGRAPH_GRAPH_TYPE_FLAG ${METAGRAPH_COMPILE_COMMAND_JSON})
+message("METAGRAPH_GRAPH_TYPE_FLAG: ${METAGRAPH_GRAPH_TYPE_FLAG}")
+
+# try to find folly
+set(FOLLY_PATH "." CACHE PATH "Path to Folly")
+find_library(LIBFOLLY folly
+             HINTS ${FOLLY_PATH})
+if (NOT LIBFOLLY)
+    message("Folly not found. If you did not build Metagraph with folly, this is fine.")
+    message("Otherwise, use -DFOLLY_PATH to hint to the folly installation")
+else()
+    message("Found folly: ${LIBFOLLY}")
+endif()
+
+# find other libraries
+find_library(LIBMAUS2 maus2 PATHS "${METAGRAPH_DIR}/external-libraries/libmaus2/lib" NO_DEFAULT_PATH)
+if (NOT LIBMAUS2)
+    message("Library maus2 not found.")
+else()
+    message("Found maus2: ${LIBMAUS2}")
+endif()
+find_library(LIBMERSENNE mersenne_twister PATHS "${METAGRAPH_DIR}/build" NO_DEFAULT_PATH)
+if (NOT LIBMERSENNE)
+    message("Library mersenne-twister not found.")
+else()
+    message("Found mersenne-twister: ${LIBMERSENNE}")
+endif()
+find_library(LIBPROGRESSBAR progress_bar PATHS "${METAGRAPH_DIR}/build" NO_DEFAULT_PATH)
+if (NOT LIBPROGRESSBAR)
+    message("Library progress-bar not found.")
+else()
+    message("Found progress-bar: ${LIBPROGRESSBAR}")
+endif()
+find_library(LIBSDSL sdsl PATHS "${METAGRAPH_DIR}/external-libraries/sdsl-lite/build/lib" NO_DEFAULT_PATH)
+if (NOT LIBSDSL)
+    message("Library sdsl-lite not found.")
+else()
+    message("Found sdsl-lite: ${LIBSDSL}")
+endif()
+find_library(LIBSPDLOG spdlog PATHS "${METAGRAPH_DIR}/build/external-libraries/spdlog" NO_DEFAULT_PATH)
+if (NOT LIBSPDLOG)
+    message("Library spdlog not found.")
+else()
+    message("Found spdlog: ${LIBSPDLOG}")
+endif()
+
+# assemble metagraph target
+add_library(metagraph INTERFACE)
+
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+target_link_libraries(metagraph INTERFACE tbb)
+target_link_libraries(metagraph INTERFACE Threads::Threads)
+
+target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/src")
+target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries")
+target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/DYNAMIC/include")
+target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/hopscotch-map/include")
+target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/ips4o")
+target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/rollinghashcpp")
+target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/spdlog/include")
+target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/sdsl-lite/include")
+
+target_link_libraries(metagraph INTERFACE ${METAGRAPH_LIB})
+if(LIBFOLLY)
+    target_link_libraries(metagraph INTERFACE ${LIBFOLLY})
+endif()
+target_link_libraries(metagraph INTERFACE ${LIBMAUS2})
+target_link_libraries(metagraph INTERFACE ${LIBMERSENNE})
+target_link_libraries(metagraph INTERFACE omp)
+target_link_libraries(metagraph INTERFACE ${LIBPROGRESSBAR})
+target_link_libraries(metagraph INTERFACE ${LIBSDSL})
+target_link_libraries(metagraph INTERFACE ${LIBSPDLOG})
+
+target_compile_definitions(metagraph INTERFACE ${METAGRAPH_GRAPH_TYPE_FLAG})
+
+# add interface target
+add_library(metagraphInterface STATIC MetagraphInterface.cpp)
+target_include_directories(metagraphInterface PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+# set C++ standard
+target_compile_features(metagraphInterface PUBLIC cxx_std_17)
+
+# link metagraph stuff
+target_link_libraries(metagraphInterface PUBLIC metagraph)
+target_link_libraries(metagraphInterface PRIVATE cxx-prettyprint)

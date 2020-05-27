@@ -30,3 +30,8 @@
 *.exe
 *.out
 *.app
+
+metagraphInterface.config
+metagraphInterface.creator*
+metagraphInterface.files
+metagraphInterface.includes
