@@ -35,3 +35,5 @@ metagraphInterface.config
 metagraphInterface.creator*
 metagraphInterface.files
 metagraphInterface.includes
+
+test/build

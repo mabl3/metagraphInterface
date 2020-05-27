@@ -109,4 +109,3 @@ target_compile_features(metagraphInterface PUBLIC cxx_std_17)
 
 # link metagraph stuff
 target_link_libraries(metagraphInterface PUBLIC metagraph)
-target_link_libraries(metagraphInterface PRIVATE cxx-prettyprint)
