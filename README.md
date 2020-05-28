@@ -17,6 +17,15 @@ When building your project, you will have to point CMake to the metagraph build 
 see below for the two options `-DMETAGRAPH_PROJECT_ROOT` and `-DFOLLY_PATH`.
 
 ## Unit Tests
+
+Clone this repo recursively
+
+`$ git clone --recurse-submodules https://github.com/mabl3/metagraphInterface`
+
+If you already cloned this repo but forgot the submodules, run
+
+`$ git submodule update --init --recursive`
+
 ### Build
 
 Out of source build using CMake
@@ -27,7 +36,7 @@ $ cmake .. -DMETAGRAPH_PROJECT_ROOT=/path/to/projects2014-metagenome
 $ make
 ```
 
-If you built `metagraph` with Folly but Folly is in a non-standard location,
+If you have built `metagraph` with Folly but Folly is in a non-standard location,
 specify the path to `libfolly.a` in the `cmake` command using `-DFOLLY_PATH=/path/to/folly/lib`
 
 ### Running Unit tests
@@ -46,6 +55,6 @@ annotated graph from these sequences.
 
 #### Running Unit Tests
 
-Then, in build directory, run
+Then, in the build directory, run
 
 `$ ./testMetagraphInterface`
