@@ -1,6 +1,22 @@
 # metagraphInterface
 Interface class for Metagraph
 
+### Usage
+
+You need a build of `metagraph` somewhere on your system.
+
+Copy the files in `include/mabl3` to your project. Use CMake for building to
+save you from quite some pain. In your projects `CMakeLists.txt`, add
+
+`add_subdirectory(include/mabl3)` (or wherever you have put the files)
+
+This will take care of everything and make the `metagraphInterface` target
+available for linking with your own targets.
+
+When building your project, you will have to point CMake to the metagraph build (and maybe to Folly),
+see below for the two options `-DMETAGRAPH_PROJECT_ROOT` and `-DFOLLY_PATH`.
+
+## Unit Tests
 ### Build
 
 Out of source build using CMake
@@ -16,6 +32,20 @@ specify the path to `libfolly.a` in the `cmake` command using `-DFOLLY_PATH=/pat
 
 ### Running Unit tests
 
-In build directory
+#### Creating Testdata
+
+First you need to generate data to run the tests on
+
+```
+$ cd test/testdata
+$ python3 generateTestdata.py --metagraph /path/to/metagraph/build/metagraph
+```
+
+This will create a bunch of files with sequences in them as well as an
+annotated graph from these sequences.
+
+#### Running Unit Tests
+
+Then, in build directory, run
 
 `$ ./testMetagraphInterface`

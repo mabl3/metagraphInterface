@@ -49,8 +49,13 @@ def generateSimilarSequence(inputSeq, similarity):
             p[2] = similarity
         if c == "T":
             p[3] = similarity
+        if c not in ["A","C","G","T"]:
+            p = [0.25]*4
 
-        seqList.append(random.choices(["A","C","G","T"], weights=p)[0])
+        newBase = random.choices(["A","C","G","T"], weights=p)[0]
+        # from time to time, insert a softmask or unknown
+        insertBase = random.choices([newBase, "N", newBase.lower()], weights=[0.99998, 0.00001, 0.00001])[0]
+        seqList.append(insertBase)
     
     return("".join(seqList))
 
@@ -69,7 +74,7 @@ for sid in range(numSequencesPerSpecies):
 
 # create data expected from graph
 def genomeName(gid):
-    return("genome"+str(gid))
+    return("genome"+str(gid)+".fa")
 
 def sequenceName(sid):
     return("sequence"+str(sid))
@@ -91,7 +96,7 @@ for gid in sequences:
 kmerNeighbours = dict()
 for kmer in kmers:
     kmerNeighbours[kmer] = {"prev": [], "next": []}
-    for b in ["A","C","G","T"]:
+    for b in ["A","C","G","T","N","a","c","g","t"]:
         prevKmer = b + kmer[0:(k-1)]
         nextKmer = kmer[1:k] + b
         assert(len(prevKmer) == k)
@@ -103,7 +108,13 @@ for kmer in kmers:
             kmerNeighbours[kmer]["next"].append(nextKmer)
     
     assert((len(kmerNeighbours[kmer]["prev"]) > 0) or (len(kmerNeighbours[kmer]["next"]) > 0))
+    # also insert dummy nodes
+    if len(kmerNeighbours[kmer]["prev"]) == 0:
+        kmerNeighbours[kmer]["prev"] = ["$" + kmer[0:(k-1)]]
     
+    if len(kmerNeighbours[kmer]["next"]) == 0:
+        kmerNeighbours[kmer]["next"] = [kmer[1:k] + "$"]
+
 # store data
 with open("expectedKmers.json", "w") as fh:
     json.dump(kmers, fh)
@@ -113,7 +124,7 @@ with open("expectedKmerNeighbours.json", "w") as fh:
 
 # create the graph
 for gid in sequences:
-    with open(genomeName(gid)+".fa", "w") as fh:
+    with open(genomeName(gid), "w") as fh:
         for sid in sequences[gid]:
             fh.writelines(">"+sequenceName(sid)+"\n")
             fh.writelines(sequences[gid][sid]+"\n")

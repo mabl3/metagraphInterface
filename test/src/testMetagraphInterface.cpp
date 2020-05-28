@@ -1,23 +1,95 @@
 #include <iostream>
-#include <tuple>
-#include <unordered_map>
+#include <string>
 
 #include "catch2/catch.hpp"
 #include "MetagraphInterface.h"
+#include <tbb/concurrent_queue.h>
 #include "loadExpectedTestdata.h"
 
 TEST_CASE("Metagraph Interface") {
+    // load expected data
     auto expectedKmers = getExpectedKmers();
     auto expectedKmerNeighbours = getExpectedNeighbours();
+    std::cout << expectedKmers.size() << " kmers in test data" << std::endl;
 
-    for (auto&& elem : expectedKmerNeighbours) {
-        std::cout << elem.first << "\n  predecessors:" << std::endl;
-        for (auto&& p : elem.second.predecessors) {
-            std::cout << "\t" << p << std::endl;
+    // load graph
+    std::string const testdatapath{TESTDATAPATH};
+    auto graph = MetagraphInterface(testdatapath + "/testdataGraph.dbg",
+                                    testdatapath + "/testdataGraph.row.annodbg");
+    REQUIRE(graph.getK() == (size_t)39);
+
+    SECTION("Check Annotations") {
+        // all expeted kmers should be there
+        for (auto&& elem : expectedKmers) {
+            auto expectedAnnotations = elem.second;
+            auto observedAnnotations = graph.getAnnotation(graph.getNode(elem.first));
+            std::sort(expectedAnnotations.begin(), expectedAnnotations.end());
+            std::sort(observedAnnotations.begin(), observedAnnotations.end());
+            REQUIRE(expectedAnnotations == observedAnnotations);
         }
-        std::cout << "  successors:" << std::endl;
-        for (auto&& s : elem.second.successors) {
-            std::cout << "\t" << s << std::endl;
+    }
+    SECTION("Check Start Nodes") {
+        std::vector<std::string> expectedStart;
+        for (auto&& elem : expectedKmerNeighbours) {
+            if (elem.second.predecessors.size() == 1
+                    && elem.second.predecessors.at(0).at(0) == '$') {
+               expectedStart.emplace_back(elem.first);
+            }
+        }
+        std::vector<std::string> observedStart;
+        for (auto&& i : graph.getStartNodes()) {
+            observedStart.emplace_back(graph.getKmer(i));
+        }
+        std::sort(expectedStart.begin(), expectedStart.end());
+        std::sort(observedStart.begin(), observedStart.end());
+        REQUIRE(expectedStart == observedStart);
+    }
+    SECTION("Check Iteration") {
+        // remove softmask and unknown
+        auto expectedCleanKmers = expectedKmers;
+        for (auto&& elem : expectedKmers) {
+            for (char c : elem.first) {
+                if (!(c == 'A' || c == 'C' || c == 'G' || c == 'T')) {
+                    expectedCleanKmers.erase(elem.first);
+                }
+            }
+        }
+        std::unordered_map<std::string, std::vector<MetagraphInterface::NodeAnnotation>> observedKmers;
+        auto callback = [&observedKmers](std::string const & kmer,
+                                         std::vector<MetagraphInterface::NodeAnnotation> const & occurrences) {
+            auto occ = occurrences;
+            std::sort(occ.begin(), occ.end());
+            observedKmers.emplace(kmer, occ);
+        };
+        graph.iterateNodes(callback, 0, 0, true, true);
+        REQUIRE(expectedCleanKmers == observedKmers);
+    }
+    SECTION("Check Queueing") {
+        tbb::concurrent_queue<std::pair<std::string, std::vector<MetagraphInterface::NodeAnnotation>>> queue;
+        graph.queueKmers(queue);
+        std::unordered_map<std::string, std::vector<MetagraphInterface::NodeAnnotation>> observedKmers;
+        std::pair<std::string, std::vector<MetagraphInterface::NodeAnnotation>> elem;
+        while (queue.try_pop(elem)) {
+            auto occ = elem.second;
+            std::sort(occ.begin(), occ.end());
+            observedKmers.emplace(elem.first, occ);
+        }
+        REQUIRE(expectedKmers == observedKmers);
+    }
+    SECTION("Check Neighbours") {
+        for (auto&& elem : expectedKmerNeighbours) {
+            std::vector<std::string> observedIncoming;
+            std::vector<std::string> observedOutgoing;
+            for (auto&& i : graph.getIncoming(graph.getNode(elem.first))) {
+                observedIncoming.emplace_back(graph.getKmer(i));
+            }
+            for (auto&& i : graph.getOutgoing(graph.getNode(elem.first))) {
+                observedOutgoing.emplace_back(graph.getKmer(i));
+            }
+            std::sort(observedIncoming.begin(), observedIncoming.end());
+            std::sort(observedOutgoing.begin(), observedOutgoing.end());
+            REQUIRE(elem.second.predecessors == observedIncoming);
+            REQUIRE(elem.second.successors == observedOutgoing);
         }
     }
 }

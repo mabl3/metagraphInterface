@@ -26,6 +26,7 @@ auto getExpectedKmers() {
                                                                         anno[2].get<bool>(),
                                                                         anno[3].get<size_t>()});
         }
+        std::sort(annotations.begin(), annotations.end());
         expectedKmers.emplace(kmer, annotations);
     }
 
@@ -56,6 +57,8 @@ auto getExpectedNeighbours() {
         for (auto&& s : elem.value()["next"]) {
             successors.emplace_back(s.get<std::string>());
         }
+        std::sort(predecessors.begin(), predecessors.end());
+        std::sort(successors.begin(), successors.end());
         expectedNeighbours.emplace(kmer, KmerNeighbours{predecessors, successors});
     }
 

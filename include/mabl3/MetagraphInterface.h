@@ -19,6 +19,19 @@ public:
         std::string sequence;   // fasta header without '> '
         bool reverse_strand;
         size_t bin_idx;         // kmer position in the sequence, possibly rounded
+        bool operator==(NodeAnnotation const & rhs) const {
+            return genome == rhs.genome
+                    && sequence == rhs.sequence
+                    && reverse_strand == rhs.reverse_strand
+                    && bin_idx == rhs.bin_idx;
+        }
+        bool operator<(NodeAnnotation const & rhs) const {
+            return genome < rhs.genome
+                    || (genome == rhs.genome && sequence < rhs.sequence)
+                    || (genome == rhs.genome && sequence == rhs.sequence && bin_idx < rhs.bin_idx)
+                    || (genome == rhs.genome && sequence == rhs.sequence && bin_idx == rhs.bin_idx
+                        && reverse_strand < rhs.reverse_strand);
+        }
     };
 
     //! Alias for a callback function used in node iteration
