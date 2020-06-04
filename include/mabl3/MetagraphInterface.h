@@ -83,15 +83,7 @@ public:
         auto const & labels = graph_->get_labels(nodeID);
         std::vector<NodeAnnotation> bins;
         for (std::string const & label : labels) {
-            const auto &parts = utils::split_string(label, "\1");
-            if (parts.size() != 4) {
-                throw std::runtime_error("[ERROR] -- MetagraphInterface::getAnnotation -- invalid label " + label);
-            }
-            std::string const & genome = parts[0];
-            std::string const & sequence = parts[1];
-            bool reverse = std::stoi(parts[2]) != 0;
-            size_t bin_idx = static_cast<size_t>(std::stoi(parts[3]));
-            bins.push_back({ genome, sequence, reverse, bin_idx });
+            bins.push_back(parseLabel(label));
         }
         return bins;
     }
@@ -114,7 +106,7 @@ public:
     //! Direct access to the graph
     auto const & graph() const { return graph_; }
     //! Iterate over all nodes in the graph, calling \c callback for each node
-    void iterateNodes(const KMerCallback &callback,
+    void iterateNodes(KMerCallback const & callback,
                       size_t minNumGenomes = 0,
                       size_t maxKmerCount = 0,
                       bool onlyACGT = true,
@@ -146,6 +138,13 @@ public:
     }
     //! Get number of nodes in the graph
     size_t numNodes() const { return graph_->get_graph().num_nodes(); }
+    //! Get all annotations from metagraph and iterate over them, calling \c callback on each single label
+    void parseAllAnnotations(std::function<void(NodeAnnotation const & annot)> const & callback) const {
+        auto const & annotation = graph_->get_annotation();
+        for (auto&& label : annotation.get_all_labels()) {
+            callback(parseLabel(label));
+        }
+    }
     //! Push all k-mers on a tbb::concurrent_queue so multiple threads can work with them
     void queueKmers(tbb::concurrent_queue<std::pair<std::string, std::vector<NodeAnnotation>>> & queue) const {
         assert(graph_.get());
@@ -169,6 +168,18 @@ private:
             graph_->get_graph().adjacent_outgoing_nodes(i, callback);
         }
         return neighbours;
+    }
+    //! Gets a label string from metagraph and returns a NodeAnnotation object
+    NodeAnnotation parseLabel(std::string const & label) const {
+        const auto & parts = utils::split_string(label, "\1");
+        if (parts.size() != 4) {
+            throw std::runtime_error("[ERROR] -- MetagraphInterface::parseLabel -- invalid label " + label);
+        }
+        std::string const & genome = parts[0];
+        std::string const & sequence = parts[1];
+        bool reverse = std::stoi(parts[2]) != 0;
+        size_t bin_idx = static_cast<size_t>(std::stoi(parts[3]));
+        return NodeAnnotation{genome, sequence, reverse, bin_idx};
     }
 
     //! Pointer to the graph

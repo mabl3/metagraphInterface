@@ -19,6 +19,12 @@ TEST_CASE("Metagraph Interface") {
     REQUIRE(graph.getK() == (size_t)39);
 
     SECTION("Check Annotations") {
+        // test parseAllAnnotations
+        std::set<MetagraphInterface::NodeAnnotation> observedAnnotationSet;
+        std::set<MetagraphInterface::NodeAnnotation> expectedAnnotationSet;
+        graph.parseAllAnnotations([&observedAnnotationSet](MetagraphInterface::NodeAnnotation const & annot){
+            observedAnnotationSet.emplace(annot);
+        });
         // all expeted kmers should be there
         for (auto&& elem : expectedKmers) {
             auto expectedAnnotations = elem.second;
@@ -26,7 +32,9 @@ TEST_CASE("Metagraph Interface") {
             std::sort(expectedAnnotations.begin(), expectedAnnotations.end());
             std::sort(observedAnnotations.begin(), observedAnnotations.end());
             REQUIRE(expectedAnnotations == observedAnnotations);
+            for (auto&& annot : expectedAnnotations) { expectedAnnotationSet.emplace(annot); }
         }
+        REQUIRE(expectedAnnotationSet == observedAnnotationSet);
     }
     SECTION("Check Start Nodes") {
         std::vector<std::string> expectedStart;
