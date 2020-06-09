@@ -28,7 +28,7 @@ sequenceLength = 10000
 # k in graph
 k = 39
 # bin size in graph
-binsize = 50
+binsize = 100
 
 def generateSequence(seqLength):
     return("".join(random.choices(["A","C","G","T"], k=seqLength)))
@@ -72,6 +72,10 @@ for sid in range(numSequencesPerSpecies):
     for gid in range(1,numSpecies):
         sequences[gid][sid] = generateSimilarSequence(sequences[gid-1][sid], similarity)
 
+# make sure that at least one kmer occurs twice in the same bin
+sequences[0][0] = sequences[0][0][0:k] + sequences[0][0][0:k] + sequences[0][0][(2*k):]
+assert(len(sequences[0][0]) == sequenceLength)
+
 # create data expected from graph
 def genomeName(gid):
     return("genome"+str(gid)+".fa")
@@ -87,11 +91,18 @@ for gid in sequences:
             kmer = seq[i:(i+k)]
             assert(len(kmer) == k)
             binIdx = math.floor(i/binsize) * binsize
-            occ = [genomeName(gid), sequenceName(sid), False, binIdx]
+            occ = tuple([genomeName(gid), sequenceName(sid), False, binIdx])
             if kmer not in kmers:
-                kmers[kmer] = [occ]
-            else:
-                kmers[kmer].append(occ)
+                kmers[kmer] = set() # set assumes that for kmers occuring >once in a bin, annotation is only reported once
+                
+            kmers[kmer].add(occ)
+
+# need to convert sets and tuples to lists for json
+for kmer in kmers:
+    occset = kmers[kmer]
+    kmers[kmer] = []
+    for occ in occset:
+        kmers[kmer].append(list(occ))
 
 kmerNeighbours = dict()
 for kmer in kmers:
