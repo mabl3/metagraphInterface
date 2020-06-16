@@ -157,11 +157,8 @@ public:
     }
     //! Push all k-mers on a tbb::concurrent_queue so multiple threads can work with them
     void queueKmers(tbb::concurrent_queue<std::pair<std::string, std::vector<NodeAnnotation>>> & queue) const {
-        assert(graph_.get());
-        auto const & bossIndex = dynamic_cast<const DBGSuccinct&>(graph_->get_graph()).get_boss();
-        // start iteration
-        bossIndex.call_kmers([&](auto i, auto const & kmerSequence) {
-            queue.push(std::pair<std::string, std::vector<NodeAnnotation>>(kmerSequence, getAnnotation(i)));
+        iterateGraph([this, &queue](std::string const & kmer, NodeID id){
+            queue.push(std::pair<std::string, std::vector<NodeAnnotation>>(kmer, getAnnotation(id)));
         });
     }
 
