@@ -35,8 +35,8 @@ public:
     };
 
     //! Alias for a callback function used in node iteration
-    using KMerCallback = std::function<void(std::string const & kmer,
-                                            std::vector<NodeAnnotation> const & occurrences)>;
+    using KMerCallback = std::function<void(std::string const &,
+                                            std::vector<NodeAnnotation> const &)>;
     //! Alias for a node identifier
     using NodeID = DeBruijnGraph::node_index;
 
@@ -107,34 +107,44 @@ public:
     auto const & graph() const { return graph_; }
     //! Iterate over all nodes in the graph, calling \c callback for each node
     void iterateNodes(KMerCallback const & callback,
-                      size_t minNumGenomes = 0,
-                      size_t maxKmerCount = 0,
-                      bool onlyACGT = true,
-                      bool onlyUC = true) const {
-        assert(graph_.get());
-        std::unordered_set<std::string> genomes;    // keep track for minNumGenomes
-        auto const & bossIndex = dynamic_cast<const DBGSuccinct&>(graph_->get_graph()).get_boss();
-        // start iteration
-        bossIndex.call_kmers([&](auto i, auto const & kmerSequence) {
-            genomes.clear();
-            std::string kmer = kmerSequence;
-            if (onlyACGT && kmer.find('N') != std::string::npos) { return; }
-            if (onlyUC) {
-                for (char c : kmer) {
-                    // a lower case letter detected
-                    if (c > 90) { return; }
+                          size_t minNumGenomes = 0,
+                          size_t maxKmerCount = 0,
+                          bool onlyACGT = false,
+                          bool onlyUC = false) const {
+        if (minNumGenomes || maxKmerCount || onlyACGT || onlyUC) {
+            std::unordered_set<std::string> genomes;    // keep track for minNumGenomes
+            iterateGraph([this,
+                              &callback,
+                              &genomes,
+                              &minNumGenomes,
+                              &maxKmerCount,
+                              &onlyACGT,
+                              &onlyUC](std::string const & kmer, NodeID id){
+                genomes.clear();
+                if (onlyACGT && kmer.find('N') != std::string::npos) { return; }
+                if (onlyUC) {
+                    for (char c : kmer) {
+                        // a lower case letter detected
+                        if (c > 90) { return; }
+                    }
                 }
-            }
-            auto bins = getAnnotation(i);
-            for (auto const & bin : bins) {
-                genomes.insert(bin.genome);
-            }
-            // if all requirements fulfilled, execute the callback function on this node
-            if (genomes.size() >= minNumGenomes
-                    && (maxKmerCount == 0 || bins.size() - genomes.size() < maxKmerCount)) {
-                callback(kmer, bins);
-            }
-        });
+                auto bins = getAnnotation(id);
+                for (auto const & bin : bins) {
+                    genomes.insert(bin.genome);
+                }
+                // if all requirements fulfilled, execute the callback function on this node
+                if (genomes.size() >= minNumGenomes
+                        && (maxKmerCount == 0 || bins.size() - genomes.size() < maxKmerCount)) {
+                    callback(kmer, bins);
+                }
+            });
+        } else {
+            // no need for checking, just return each kmer to this methods callback
+            iterateGraph([this,
+                              &callback](std::string const & kmer, NodeID id){
+                callback(kmer, getAnnotation(id));
+            });
+        }
     }
     //! Get number of nodes in the graph
     size_t numNodes() const { return graph_->get_graph().num_nodes(); }
@@ -155,7 +165,24 @@ public:
         });
     }
 
+    friend std::ostream& operator<<(std::ostream & out, NodeAnnotation const & bin) {
+        out << bin.genome << ", " << bin.sequence << ", " << bin.bin_idx << ", " << bin.reverse_strand;
+        return out;
+    }
+
 private:
+    //! callback function gets a k-mer and its node ID
+    void iterateGraph(std::function<void(std::string const &, NodeID)> const & callback) const {
+        auto k = getK();
+        graph_->get_graph().call_sequences([this,
+                                            &callback,
+                                            k](std::string const & contig,
+                                               std::vector<NodeID> const & ids){
+            for (size_t i = 0; i <= contig.size() - k; ++i) {
+                callback(contig.substr(i,k), ids[i]);
+            }
+        });
+    }
     //! Get all incoming or outcoming \c NodeID s of a certain node
     std::vector<NodeID> nextNode(NodeID i, bool incoming) const {
         std::vector<NodeID> neighbours;
@@ -185,10 +212,5 @@ private:
     //! Pointer to the graph
     std::unique_ptr<AnnotatedDBG> graph_;
 };
-
-inline std::ostream& operator<<(std::ostream & out, MetagraphInterface::NodeAnnotation const & bin) {
-    out << bin.genome << ", " << bin.sequence << ", " << bin.bin_idx << ", " << bin.reverse_strand;
-    return out;
-}
 
 #endif // METAGRAPHINTERFACE_H

@@ -1,3 +1,4 @@
+#include <chrono>
 #include <iostream>
 #include <string>
 
@@ -69,8 +70,25 @@ TEST_CASE("Metagraph Interface") {
             std::sort(occ.begin(), occ.end());
             observedKmers.emplace(kmer, occ);
         };
+        auto ts = std::chrono::system_clock::now();
         graph.iterateNodes(callback, 0, 0, true, true);
+        auto tsend = std::chrono::system_clock::now();
+        std::cout << "Iteration took " << std::chrono::duration_cast<std::chrono::seconds>(tsend - ts).count() << " s" << std::endl;
         REQUIRE(expectedCleanKmers == observedKmers);
+    }
+    SECTION("Check Fast Iteration") {
+        std::unordered_map<std::string, std::vector<MetagraphInterface::NodeAnnotation>> observedKmers;
+        auto callback = [&observedKmers](std::string const & kmer,
+                                         std::vector<MetagraphInterface::NodeAnnotation> const & occurrences) {
+            auto occ = occurrences;
+            std::sort(occ.begin(), occ.end());
+            observedKmers.emplace(kmer, occ);
+        };
+        auto ts = std::chrono::system_clock::now();
+        graph.iterateNodes(callback, 0, 0, false, false);
+        auto tsend = std::chrono::system_clock::now();
+        std::cout << "Fast iteration took " << std::chrono::duration_cast<std::chrono::seconds>(tsend - ts).count() << " s" << std::endl;
+        REQUIRE(expectedKmers == observedKmers);
     }
     SECTION("Check Queueing") {
         tbb::concurrent_queue<std::pair<std::string, std::vector<MetagraphInterface::NodeAnnotation>>> queue;
