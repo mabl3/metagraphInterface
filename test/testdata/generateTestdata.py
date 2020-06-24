@@ -1,7 +1,9 @@
 import argparse
 import json
 import math
+import os
 import random
+import re
 import subprocess
 import sys
 
@@ -30,6 +32,31 @@ k = 39
 # bin size in graph
 binsize = 100
 
+
+
+# find out which alphabet metagraph uses
+alphabet = ""
+caseSensitive = False
+mg_build = os.path.dirname(metagraphBin)
+mg_cc = os.path.join(mg_build, "compile_commands.json")
+assert os.path.isfile(mg_cc), "Could not find metagraph compile_commands.json in " + mg_cc
+with open(mg_cc, "r") as fh:
+    metagraphCompileCommands = json.load(fh)
+    for elem in metagraphCompileCommands:
+        for key in elem:
+            typestr = re.search("-D_[A-Z_]+_GRAPH", elem[key])
+            if typestr:
+                m = typestr.group(0)
+                if m == "-D_DNA_GRAPH":
+                    alphabet = "ACGT"
+                elif m == "-D_DNA5_GRAPH":
+                    alphabet = "ACGTN"
+                elif m == "-D_DNA_CASE_SENSITIVE_GRAPH":
+                    alphabet = "ACGTNacgt"
+                    caseSensitive = True
+                else:
+                    sys.exit("Could not determine Metagraph alphabet")
+
 def generateSequence(seqLength):
     return("".join(random.choices(["A","C","G","T"], k=seqLength)))
 
@@ -55,6 +82,9 @@ def generateSimilarSequence(inputSeq, similarity):
         newBase = random.choices(["A","C","G","T"], weights=p)[0]
         # from time to time, insert a softmask or unknown
         insertBase = random.choices([newBase, "N", newBase.lower()], weights=[0.99998, 0.00001, 0.00001])[0]
+        # if not DNA_CASE_SENSITIVE, omit softmask (as metagraph would convert lower case to upper case)
+        insertBase = "N" if not caseSensitive and insertBase == newBase.lower() else insertBase
+
         seqList.append(insertBase)
     
     return("".join(seqList))
@@ -90,12 +120,14 @@ for gid in sequences:
         for i in range(0, len(seq)-k+1):
             kmer = seq[i:(i+k)]
             assert(len(kmer) == k)
-            binIdx = math.floor(i/binsize) * binsize
-            occ = tuple([genomeName(gid), sequenceName(sid), False, binIdx])
-            if kmer not in kmers:
-                kmers[kmer] = set() # set assumes that for kmers occuring >once in a bin, annotation is only reported once
-                
-            kmers[kmer].add(occ)
+            # only add kmers that fit the alphabet
+            if re.match("["+alphabet+"]{"+str(k)+"}", kmer):
+                binIdx = math.floor(i/binsize) * binsize
+                occ = tuple([genomeName(gid), sequenceName(sid), False, binIdx])
+                if kmer not in kmers:
+                    kmers[kmer] = set() # set assumes that for kmers occuring >once in a bin, annotation is only reported once
+                    
+                kmers[kmer].add(occ)
 
 # need to convert sets and tuples to lists for json
 for kmer in kmers:
@@ -150,153 +182,3 @@ print("Running", coordinateCommant)
 subprocess.run([coordinateCommant], shell = True, executable = '/bin/bash')
 
 sys.exit()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# generate C++ header with hardcoded data
-content = []
-content.append("#include <string>")
-content.append("#include <unordered_map>")
-content.append("")
-content.append("#include <MetagraphInterface.h>")
-content.append("")
-content.append("")
-content.append("")
-
-### code chunks that initialize the NodeAnntoation vectors for each kmer
-allKmerAnnotCode = []
-for kmer in kmers:
-    kmerAnnotCode = []
-    kmerAnnotCode.append("    std::vector<MetagraphInterface::NodeAnnotation> annot"+kmer+"{")
-    for annot in kmers[kmer]:
-        kmerAnnotCode.append("      MetagraphInterface::NodeAnnotation{\""+annot[0]+"\", \""+annot[1]+"\", "+annot[2]+", "+str(annot[3])+"},")
-
-    kmerAnnotCode[-1] = kmerAnnotCode[-1][0:(len(kmerAnnotCode[-1])-1)] # remove last komma
-    kmerAnnotCode.append("    };")
-    kmerAnnotCode.append("    expectedKmers.emplace(\""+kmer+"\", annot"+kmer+");")
-    allKmerAnnotCode.append(kmerAnnotCode)
-
-### create functions of 50 kmers each that fill an unordered_map of kmer to NodeAnnotation vector
-for i in range(math.ceil(len(allKmerAnnotCode)/50)):
-    content.append("void addExpectedKmers_"+str(i)+"(std::unordered_map<std::string, std::vector<MetagraphInterface::NodeAnnotation>> & expectedKmers) {")
-    for c in range(i*50, min((i+1)*50, len(allKmerAnnotCode))):
-        content.extend(allKmerAnnotCode[c])
-        
-    content.append("}")
-    content.append("")
-
-### 'parent' function to get an unordered_map of kmer to NodeAnnotation vector
-content.append("auto expectedKmers() {")
-content.append("    auto expectedKmers = std::unordered_map<std::string, std::vector<MetagraphInterface::NodeAnnotation>>{};")
-for i in range(math.ceil(len(allKmerAnnotCode)/50)):
-    content.append("    addExpectedKmers_"+str(i)+"(expectedKmers);")
-content.append("}")
-content.append("")
-content.append("")
-content.append("")
-
-### code chunks that fill unordered_maps of kmers to previous or next kmer vectors
-allKmerPredecessorCode = []
-allKmerSuccessorCode = []
-for kmer in kmerNeighbours:
-    if len(kmerNeighbours[kmer]["prev"]) > 0:
-        kmerPredecessorCode = ["    expectedPredecessors.emplace(\""+kmer+"\", std::vector<std::string>{"]
-        for pred in kmerNeighbours[kmer]["prev"]:
-            kmerPredecessorCode.append("      "+pred+",")
-        kmerPredecessorCode[-1] = kmerPredecessorCode[-1][0:(len(kmerPredecessorCode[-1])-1)] # remove last komma
-        kmerPredecessorCode.append("    };")
-        allKmerPredecessorCode.append(kmerPredecessorCode)
-
-    if len(kmerNeighbours[kmer]["next"]) > 0:
-        kmerSuccessorCode = ["    expectedSuccessors.emplace(\""+kmer+"\", std::vector<std::string>{"]
-        for succ in kmerNeighbours[kmer]["next"]:
-            kmerSuccessorCode.append("      "+succ+",")
-        kmerSuccessorCode[-1] = kmerSuccessorCode[-1][0:(len(kmerSuccessorCode[-1])-1)] # remove last komma
-        kmerSuccessorCode.append("    };")
-        allKmerSuccessorCode.append(kmerSuccessorCode)
-
-### create functions of 50 kmers each that fill unordered_maps of kmer to kmer vectors
-for i in range(math.ceil(len(allKmerPredecessorCode)/50)):
-    content.append("void addPredecessorKmers_"+str(i)+"(std::unordered_map<std::string, std::vector<std::string>> & expectedPredecessors) {")
-    for c in range(i*50, min((i+1)*50, len(allKmerPredecessorCode))):
-        content.extend(allKmerPredecessorCode[c])
-        
-    content.append("}")
-    content.append("")
-
-content.append("auto expectedPredecessors() {")
-content.append("    auto expectedPredecessors = std::unordered_map<std::string, std::vector<std::string>>{};")
-for i in range(math.ceil(len(allKmerPredecessorCode)/50)):
-    content.append("    addPredecessorKmers_"+str(i)+"(expectedPredecessors);")
-content.append("}")
-content.append("")
-content.append("")
-content.append("")
-
-for i in range(math.ceil(len(allKmerSuccessorCode)/50)):
-    content.append("void addSuccessorKmers_"+str(i)+"(std::unordered_map<std::string, std::vector<std::string>> & expectedSuccessors) {")
-    for c in range(i*50, min((i+1)*50, len(allKmerSuccessorCode))):
-        content.extend(allKmerSuccessorCode[c])
-        
-    content.append("}")
-    content.append("")
-
-content.append("auto expectedSuccessors() {")
-content.append("    auto expectedSuccessors = std::unordered_map<std::string, std::vector<std::string>>{};")
-for i in range(math.ceil(len(allKmerPredecessorCode)/50)):
-    content.append("    addSuccessorKmers_"+str(i)+"(expectedSuccessors);")
-content.append("}")
-content.append("")
-
-### write code to header file
-for i in range(len(content)):
-    content[i] = content[i] + "\n"
-with open("loadExpectedTestdata.h", "w") as fh:
-    fh.writelines(content)

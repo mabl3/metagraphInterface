@@ -38,10 +38,9 @@ add_subdirectory(lib/mabl3)
 # the main program
 add_executable(testMetagraphInterface src/main.cpp
                                       src/testMetagraphInterface.cpp
-                                      testdata/loadExpectedTestdata.h)
+                                      src/loadExpectedTestdata.h)
 
-target_include_directories(testMetagraphInterface PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
-                                                  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/testdata")
+target_include_directories(testMetagraphInterface PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 
 # set testfile location (sets -DTESTDATAPATH=\"/home/.../testdata\" that is then used in loadExpectedTestdata.h)
