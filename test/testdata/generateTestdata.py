@@ -10,28 +10,71 @@ import sys
 parser = argparse.ArgumentParser(description = "Create testdata",
                                  formatter_class = argparse.RawTextHelpFormatter)
 scriptArgs = parser.add_argument_group("Script Arguments")
+scriptArgs.add_argument("--binsize",
+                        dest = "binsize", 
+                        metavar = "INT", 
+                        type=int,
+                        default=100,
+                        help="binsize of metagraph")
+scriptArgs.add_argument("--k",
+                        dest = "k", 
+                        metavar = "INT", 
+                        type=int,
+                        default=39,
+                        help="k of metagraph")
 scriptArgs.add_argument("--metagraph",
                         dest = "metagraph", 
                         metavar = "FILE", 
                         type=argparse.FileType("r"),
                         help="metagraph binary", 
                         required = True)
+scriptArgs.add_argument("--nsequences",
+                        dest = "nsequences", 
+                        metavar = "INT", 
+                        type=int,
+                        default=10,
+                        help="number of sequences to generate per species")
+scriptArgs.add_argument("--nspecies",
+                        dest = "nspecies", 
+                        metavar = "INT", 
+                        type=int,
+                        default=10,
+                        help="number of species to generate")
+scriptArgs.add_argument("--sequence-lengths",
+                        dest = "seqlen", 
+                        metavar = "INT", 
+                        type=int,
+                        default=10000,
+                        help="length of each sequence")
+scriptArgs.add_argument("--similarity",
+                        dest = "similarity", 
+                        metavar = "FLOAT", 
+                        type=float,
+                        default=0.85,
+                        help="sequence similarity between neighbouring species")
 args = parser.parse_args()
 metagraphBin = args.metagraph.name
 
 # number of fasta files
-numSpecies = 10
+numSpecies = args.nspecies
 # number of sequences per fasta file
-numSequencesPerSpecies = 10
+numSequencesPerSpecies = args.nsequences
 # sequence similarity between sequence pairs
-similarity = 0.85
+similarity = args.similarity
 # lenths of the sequences
-sequenceLength = 10000
+sequenceLength = args.seqlen
 # k in graph
-k = 39
+k = args.k
 # bin size in graph
-binsize = 100
+binsize = args.binsize
 
+assert numSpecies >= 2
+assert numSequencesPerSpecies >= 1
+assert similarity > 0
+assert similarity < 1
+assert sequenceLength >= 1
+assert k > 2
+assert binsize >= 1
 
 
 # find out which alphabet metagraph uses
