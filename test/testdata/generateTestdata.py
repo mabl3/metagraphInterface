@@ -74,6 +74,7 @@ assert similarity > 0
 assert similarity < 1
 assert sequenceLength >= 1
 assert k > 2
+assert sequenceLength >= k
 assert binsize >= 1
 
 
@@ -148,6 +149,9 @@ for sid in range(numSequencesPerSpecies):
 # make sure that at least one kmer occurs twice in the same bin
 sequences[0][0] = sequences[0][0][0:k] + sequences[0][0][0:k] + sequences[0][0][(2*k):]
 assert(len(sequences[0][0]) == sequenceLength)
+# higher possibility that kmers are not present in each sequence
+if k >= binsize and sequenceLength >= 3*binsize:
+    sequences[1][0][2*binsize:3*binsize] = "N"*binsize
 
 # create data expected from graph
 def genomeName(gid):
