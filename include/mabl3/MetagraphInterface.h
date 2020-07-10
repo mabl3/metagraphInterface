@@ -88,7 +88,7 @@ public:
         return bins;
     }
     //! Get all incoming node IDs
-    auto getIncoming(NodeID i) const { return nextNode(i, true); }
+    auto getIncoming(NodeID i) const { return getNeighbors(i, true); }
     //! Get value of k in the graph
     size_t getK() const { return graph_->get_graph().get_k(); }
     //! Given a node index, return the kmer string
@@ -96,7 +96,7 @@ public:
     //! Get a node from a k-mer string
     NodeID getNode(std::string const & kmer) const { return graph_->get_graph().kmer_to_node(kmer); }
     //! Get all outgoing node IDs
-    auto getOutgoing(NodeID i) const { return nextNode(i, false); }
+    auto getOutgoing(NodeID i) const { return getNeighbors(i, false); }
     //! Get starting node's IDs
     auto getStartNodes() const {
         std::vector<NodeID> ids;
@@ -181,7 +181,7 @@ private:
         });
     }
     //! Get all incoming or outcoming \c NodeID s of a certain node
-    std::vector<NodeID> nextNode(NodeID i, bool incoming) const {
+    std::vector<NodeID> getNeighbors(NodeID i, bool incoming) const {
         std::vector<NodeID> neighbours;
         auto callback = [&neighbours](NodeID nodeID) {
             neighbours.emplace_back(nodeID);
