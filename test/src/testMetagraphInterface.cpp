@@ -34,6 +34,21 @@ TEST_CASE("Metagraph Interface") {
             std::sort(observedAnnotations.begin(), observedAnnotations.end());
             REQUIRE(expectedAnnotations == observedAnnotations);
             for (auto&& annot : expectedAnnotations) { expectedAnnotationSet.emplace(annot); }
+            // check redundant annotations
+            auto observedRedundantAnnotation = graph.getRedundantAnnotation(graph.getNode(elem.first));
+            for (size_t i = 0; i < observedAnnotations.size(); ++i) {
+                auto const & annostr = observedRedundantAnnotation.at(i).annotationString;
+                auto parts = utils::split_string(annostr, "\1");
+                MetagraphInterface::NodeAnnotation reconstructed{parts.at(0),
+                                                                 parts.at(1),
+                                                                 static_cast<bool>(std::stoi(parts.at(2))),
+                                                                 static_cast<size_t>(std::stoi(parts.at(3)))};
+                REQUIRE(observedAnnotations.at(i).bin_idx == observedRedundantAnnotation.at(i).bin_idx);
+                REQUIRE(observedAnnotations.at(i).genome == observedRedundantAnnotation.at(i).genome);
+                REQUIRE(observedAnnotations.at(i).reverse_strand == observedRedundantAnnotation.at(i).reverse_strand);
+                REQUIRE(observedAnnotations.at(i).sequence == observedRedundantAnnotation.at(i).sequence);
+                REQUIRE(observedAnnotations.at(i) == reconstructed);
+            }
         }
         REQUIRE(expectedAnnotationSet == observedAnnotationSet);
     }

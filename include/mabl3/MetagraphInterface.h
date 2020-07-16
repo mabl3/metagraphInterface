@@ -33,6 +33,19 @@ public:
                         && reverse_strand < rhs.reverse_strand);
         }
     };
+    struct RedundantNodeAnnotation : NodeAnnotation {
+        RedundantNodeAnnotation(std::string const & _genome,
+                                std::string const & _sequence,
+                                bool _reverse_strand,
+                                size_t _bin_idx,
+                                std::string const & _annotationString)
+            : NodeAnnotation{_genome, _sequence, _reverse_strand, _bin_idx},
+              annotationString{_annotationString} {}
+        RedundantNodeAnnotation(NodeAnnotation const & _annotation,
+                                std::string const & _annotationString)
+            : NodeAnnotation{_annotation}, annotationString{_annotationString} {}
+        std::string annotationString;
+    };
 
     //! Alias for a callback function used in node iteration
     using KMerCallback = std::function<void(std::string const &,
@@ -84,6 +97,15 @@ public:
         std::vector<NodeAnnotation> bins;
         for (std::string const & label : labels) {
             bins.push_back(parseLabel(label));
+        }
+        return bins;
+    }
+    //! Get redundant annotation of a node
+    std::vector<RedundantNodeAnnotation> getRedundantAnnotation(NodeID const nodeID) const {
+        auto const & labels = graph_->get_labels(nodeID);
+        std::vector<RedundantNodeAnnotation> bins;
+        for (std::string const & label : labels) {
+            bins.push_back(RedundantNodeAnnotation{parseLabel(label), label});
         }
         return bins;
     }
