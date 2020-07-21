@@ -102,6 +102,7 @@ target_compile_definitions(metagraph INTERFACE ${METAGRAPH_GRAPH_TYPE_FLAG})
 
 # add interface target
 add_library(metagraphInterface STATIC MetagraphInterface.cpp)
+target_link_libraries(metagraphInterface PRIVATE tbb)
 target_include_directories(metagraphInterface PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # set C++ standard

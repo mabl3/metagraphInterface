@@ -18,7 +18,6 @@ TEST_CASE("Metagraph Interface") {
     auto graph = MetagraphInterface(testdatapath + "/testdataGraph.dbg",
                                     testdatapath + "/testdataGraph.row.annodbg");
     REQUIRE(graph.getK() == (size_t)39);
-
     SECTION("Check Annotations") {
         // test parseAllAnnotations
         std::set<MetagraphInterface::NodeAnnotation> observedAnnotationSet;
@@ -132,5 +131,24 @@ TEST_CASE("Metagraph Interface") {
             REQUIRE(elem.second.predecessors == observedIncoming);
             REQUIRE(elem.second.successors == observedOutgoing);
         }
+    }
+    SECTION("Check Nodes from Annotation") {
+        size_t i = 0;
+        auto callback = [&graph, &i](std::string const & kmer,
+                                     std::vector<MetagraphInterface::NodeAnnotation> const & annotations) {
+            if (i < 10000) { // checking all nodes takes way too long
+                auto trueID = graph.getNode(kmer);
+                for (auto&& annotation : annotations) {
+                    auto ids = graph.getNodes(annotation);
+                    REQUIRE(std::find(ids.begin(), ids.end(), trueID) != ids.end());    // find trueID in ids
+                    for (auto&& id : ids) {
+                        auto annos = graph.getAnnotation(id);
+                        REQUIRE(std::find(annos.begin(), annos.end(), annotation) != annos.end());  // make sure all ids share the current annotation
+                    }
+                }
+                ++i;
+            }
+        };
+        graph.iterateNodes(callback);
     }
 }

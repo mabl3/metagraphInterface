@@ -117,6 +117,14 @@ public:
     auto getKmer(NodeID i) const { return graph_->get_graph().get_node_sequence(i); }
     //! Get a node from a k-mer string
     NodeID getNode(std::string const & kmer) const { return graph_->get_graph().kmer_to_node(kmer); }
+    //! Get nodes that share an annotation
+    auto getNodes(NodeAnnotation const & annot) const {
+        return getNodes(mergeLabel(annot));
+    }
+    //! Get nodes that share an annotation
+    auto getNodes(RedundantNodeAnnotation const & annot) const {
+        return getNodes(annot.annotationString);
+    }
     //! Get all outgoing node IDs
     auto getOutgoing(NodeID i) const { return getNeighbors(i, false); }
     //! Get starting node's IDs
@@ -214,6 +222,19 @@ private:
             graph_->get_graph().adjacent_outgoing_nodes(i, callback);
         }
         return neighbours;
+    }
+    //! Returns all NodeIDs that share an annotation
+    std::vector<NodeID> getNodes(std::string const & annotationstring) const {
+        std::vector<NodeID> nodes;
+        auto callback = [&nodes](NodeID id) { nodes.emplace_back(id); };
+        graph_->call_annotated_nodes(annotationstring, callback);
+        return nodes;
+    }
+    //! Gets a NodeAnnotation and creates a metagraph label string
+    std::string mergeLabel(NodeAnnotation const & annotation) const {
+        return annotation.genome + "\1" + annotation.sequence + "\1"
+                + std::to_string(annotation.reverse_strand) + "\1"
+                + std::to_string(annotation.bin_idx);
     }
     //! Gets a label string from metagraph and returns a NodeAnnotation object
     NodeAnnotation parseLabel(std::string const & label) const {
