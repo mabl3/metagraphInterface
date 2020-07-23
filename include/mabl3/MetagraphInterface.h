@@ -125,6 +125,13 @@ public:
     auto getNodes(RedundantNodeAnnotation const & annot) const {
         return getNodes(annot.annotationString);
     }
+    //! Returns all NodeIDs that share an annotation
+    std::vector<NodeID> getNodes(std::string const & annotationstring) const {
+        std::vector<NodeID> nodes;
+        auto callback = [&nodes](NodeID id) { nodes.emplace_back(id); };
+        graph_->call_annotated_nodes(annotationstring, callback);
+        return nodes;
+    }
     //! Get all outgoing node IDs
     auto getOutgoing(NodeID i) const { return getNeighbors(i, false); }
     //! Get starting node's IDs
@@ -222,13 +229,6 @@ private:
             graph_->get_graph().adjacent_outgoing_nodes(i, callback);
         }
         return neighbours;
-    }
-    //! Returns all NodeIDs that share an annotation
-    std::vector<NodeID> getNodes(std::string const & annotationstring) const {
-        std::vector<NodeID> nodes;
-        auto callback = [&nodes](NodeID id) { nodes.emplace_back(id); };
-        graph_->call_annotated_nodes(annotationstring, callback);
-        return nodes;
     }
     //! Gets a NodeAnnotation and creates a metagraph label string
     std::string mergeLabel(NodeAnnotation const & annotation) const {
