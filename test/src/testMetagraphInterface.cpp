@@ -103,6 +103,18 @@ TEST_CASE("Metagraph Interface") {
         auto tsend = std::chrono::system_clock::now();
         std::cout << "Fast iteration took " << std::chrono::duration_cast<std::chrono::seconds>(tsend - ts).count() << " s" << std::endl;
         REQUIRE(expectedKmers == observedKmers);
+        // --- Only kmer iteration ---
+        std::unordered_set<std::string> expectedKmerSet;
+        for (auto&& elem : expectedKmers) { expectedKmerSet.emplace(elem.first); }
+        std::unordered_set<std::string> observedKmerSet;
+        auto kmerCallback = [&observedKmerSet](std::string const & kmer, MetagraphInterface::NodeID nodeID) {
+            observedKmerSet.emplace(kmer);
+        };
+        auto ts2 = std::chrono::system_clock::now();
+        graph.iterateNodes(kmerCallback);
+        auto ts2end = std::chrono::system_clock::now();
+        std::cout << "Fast iteration (only kmers) took " << std::chrono::duration_cast<std::chrono::seconds>(ts2end - ts2).count() << " s" << std::endl;
+        REQUIRE(expectedKmerSet == observedKmerSet);
     }
     SECTION("Check Queueing") {
         tbb::concurrent_queue<std::pair<std::string, std::vector<MetagraphInterface::NodeAnnotation>>> queue;

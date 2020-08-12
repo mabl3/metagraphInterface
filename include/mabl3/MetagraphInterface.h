@@ -48,10 +48,12 @@ public:
     };
 
     //! Alias for a callback function used in node iteration
-    using KMerCallback = std::function<void(std::string const &,
-                                            std::vector<NodeAnnotation> const &)>;
+    using KmerAnnotationCallback = std::function<void(std::string const &,
+                                                      std::vector<NodeAnnotation> const &)>;
     //! Alias for a node identifier
     using NodeID = DeBruijnGraph::node_index;
+    //! Alias for a callback function used in node iteration
+    using KmerCallback = std::function<void(std::string const &, NodeID)>;
 
     //! c'tor, loads the graph
     /*!
@@ -143,20 +145,20 @@ public:
     //! Direct access to the graph
     auto const & graph() const { return graph_; }
     //! Iterate over all nodes in the graph, calling \c callback for each node
-    void iterateNodes(KMerCallback const & callback,
-                          size_t minNumGenomes = 0,
-                          size_t maxKmerCount = 0,
-                          bool onlyACGT = false,
-                          bool onlyUC = false) const {
+    void iterateNodes(KmerAnnotationCallback const & callback,
+                      size_t minNumGenomes = 0,
+                      size_t maxKmerCount = 0,
+                      bool onlyACGT = false,
+                      bool onlyUC = false) const {
         if (minNumGenomes || maxKmerCount || onlyACGT || onlyUC) {
             std::unordered_set<std::string> genomes;    // keep track for minNumGenomes
             iterateGraph([this,
-                              &callback,
-                              &genomes,
-                              &minNumGenomes,
-                              &maxKmerCount,
-                              &onlyACGT,
-                              &onlyUC](std::string const & kmer, NodeID id){
+                          &callback,
+                          &genomes,
+                          &minNumGenomes,
+                          &maxKmerCount,
+                          &onlyACGT,
+                          &onlyUC](std::string const & kmer, NodeID id){
                 genomes.clear();
                 if (onlyACGT && kmer.find('N') != std::string::npos) { return; }
                 if (onlyUC) {
@@ -177,11 +179,15 @@ public:
             });
         } else {
             // no need for checking, just return each kmer to this methods callback
-            iterateGraph([this,
-                              &callback](std::string const & kmer, NodeID id){
+            iterateGraph([this, &callback](std::string const & kmer, NodeID id){
                 callback(kmer, getAnnotation(id));
             });
         }
+    }
+    //! This overload only returns the kmer string and its NodeID to callback
+    /*! Iterates over all kmers in the graph without filtering */
+    void iterateNodes(KmerCallback const & callback) const {
+        iterateGraph(callback);
     }
     //! Get number of nodes in the graph
     size_t numNodes() const { return graph_->get_graph().num_nodes(); }
