@@ -35,6 +35,8 @@ metagraphInterface.config
 metagraphInterface.creator*
 metagraphInterface.files
 metagraphInterface.includes
+metagraphInterface.cflags
+metagraphInterface.cxxflags
 
 test/build
 

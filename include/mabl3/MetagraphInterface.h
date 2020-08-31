@@ -212,7 +212,7 @@ public:
 
 private:
     //! callback function gets a k-mer and its node ID
-    void iterateGraph(std::function<void(std::string const &, NodeID)> const & callback) const {
+    void iterateGraph(KmerCallback const & callback) const {
         auto k = getK();
         graph_->get_graph().call_sequences([this,
                                             &callback,
@@ -256,7 +256,7 @@ private:
     }
 
     //! Pointer to the graph
-    std::unique_ptr<AnnotatedDBG> graph_;
+    std::unique_ptr<AnnotatedDBG const> graph_;
 };
 
 #endif // METAGRAPHINTERFACE_H

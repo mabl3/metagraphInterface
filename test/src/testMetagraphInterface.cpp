@@ -108,6 +108,7 @@ TEST_CASE("Metagraph Interface") {
         for (auto&& elem : expectedKmers) { expectedKmerSet.emplace(elem.first); }
         std::unordered_set<std::string> observedKmerSet;
         auto kmerCallback = [&observedKmerSet](std::string const & kmer, MetagraphInterface::NodeID nodeID) {
+            (void) nodeID;
             observedKmerSet.emplace(kmer);
         };
         auto ts2 = std::chrono::system_clock::now();
