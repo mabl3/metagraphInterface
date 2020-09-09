@@ -51,7 +51,7 @@ public:
     using KmerAnnotationCallback = std::function<void(std::string const &,
                                                       std::vector<NodeAnnotation> const &)>;
     //! Alias for a node identifier
-    using NodeID = DeBruijnGraph::node_index;
+    using NodeID = mtg::graph::DeBruijnGraph::node_index;
     //! Alias for a callback function used in node iteration
     using KmerCallback = std::function<void(std::string const &, NodeID)>;
 
@@ -75,19 +75,19 @@ public:
                 ? annotationFile.substr(0, annotationFile.size() - annotationFiletype.size())
                 : annotationFile;
         // load graph and annotation
-        auto graph = std::make_shared<DBGSuccinct>(2); // k doesn't matter, must be at least 2
+        auto graph = std::make_shared<mtg::graph::DBGSuccinct>(2); // k doesn't matter, must be at least 2
         if (!graph->load(filebase)) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- input file " + graphFile + " corrupted");
         }
-        auto annotation = std::make_unique<annotate::RowCompressed<std::string>>(0, false);
+        auto annotation = std::make_unique<mtg::annot::RowCompressed<std::string>>(0, false);
         if (!annotation->load(annotationFilebase)) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- can't load annotations for graph "
                                      + filebase + ".dbg, file "
                                      + annotationFilebase + ".row.annodbg corrupted");
         }
         // store pointer to annotated graph
-        graph_ = std::make_unique<AnnotatedDBG>(graph,
-                                                std::unique_ptr<annotate::MultiLabelEncoded<std::string>>(annotation.release()));
+        graph_ = std::make_unique<mtg::graph::AnnotatedDBG>(graph,
+                                                            std::unique_ptr<mtg::annot::MultiLabelEncoded<std::string>>(annotation.release()));
         if (!graph_->check_compatibility()) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- Graph and Annotation are incompatible.");
         }
@@ -256,7 +256,7 @@ private:
     }
 
     //! Pointer to the graph
-    std::unique_ptr<AnnotatedDBG const> graph_;
+    std::unique_ptr<mtg::graph::AnnotatedDBG const> graph_;
 };
 
 #endif // METAGRAPHINTERFACE_H
