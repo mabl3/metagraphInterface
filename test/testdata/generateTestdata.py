@@ -142,9 +142,10 @@ for gid in range(numSpecies):
 
 for sid in range(numSequencesPerSpecies):
     baseSeq = generateSequence(sequenceLength)
-    sequences[0][sid] = baseSeq
+    sequences[0][sid] = baseSeq[0:-4] + "ACGT" # make sure seq ends in ACGT (not important here)
     for gid in range(1,numSpecies):
         sequences[gid][sid] = generateSimilarSequence(sequences[gid-1][sid], similarity)
+        sequences[gid][sid] = sequences[gid][sid][0:-4] + "ACGT"
 
 # make sure that at least one kmer occurs twice in the same bin
 sequences[0][0] = sequences[0][0][0:k] + sequences[0][0][0:k] + sequences[0][0][(2*k):]
