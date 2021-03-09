@@ -3,7 +3,7 @@ Interface class for Metagraph
 
 ### Usage
 
-You need a build of `metagraph` somewhere on your system.
+You need a build of `metagraph` (https://github.com/ratschlab/metagraph) somewhere on your system.
 
 Copy the files in `include/mabl3` to your project. Use CMake for building to
 save you from quite some pain. In your projects `CMakeLists.txt`, add
