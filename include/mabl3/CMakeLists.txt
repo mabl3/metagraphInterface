@@ -4,6 +4,7 @@ project(metagraphInterface)
 set(METAGRAPH_PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../projects2014-metagenome" CACHE PATH "Metagraph project root directory")
 message("[INFO] -- METAGRAPH_PROJECT_ROOT: ${METAGRAPH_PROJECT_ROOT}")
 set(METAGRAPH_DIR "${METAGRAPH_PROJECT_ROOT}/metagraph")
+set(METAGRAPH_DIR_PARENT "${METAGRAPH_PROJECT_ROOT}/metagraph" PARENT_SCOPE)
 message("[INFO] -- METAGRAPH_DIR: ${METAGRAPH_DIR}")
 message("[INFO] -- Searching Metagraph in ${METAGRAPH_DIR}")
 if (${METAGRAPH_PROJECT_ROOT} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/../projects2014-metagenome")
@@ -27,23 +28,11 @@ file(READ "${METAGRAPH_DIR}/build/compile_commands.json" METAGRAPH_COMPILE_COMMA
 string(REGEX MATCH "-D_[A-Z_]+_GRAPH" METAGRAPH_GRAPH_TYPE_FLAG ${METAGRAPH_COMPILE_COMMAND_JSON})
 message("[INFO] -- METAGRAPH_GRAPH_TYPE_FLAG: ${METAGRAPH_GRAPH_TYPE_FLAG}")
 
-# try to find folly
-set(FOLLY_PATH "." CACHE PATH "Path to Folly")
-find_library(LIBFOLLY folly
-             HINTS ${FOLLY_PATH})
-if (NOT LIBFOLLY)
-    message("[INFO] -- Folly not found. If you did not build Metagraph with folly, this is fine.")
-    message("          Otherwise, use -DFOLLY_PATH to hint to the folly installation")
+find_library(LIBFBVECTOR fbvector PATHS "${METAGRAPH_DIR}/build" NO_DEFAULT_PATH)
+if (NOT LIBFBVECTOR)
+    message("[INFO] -- Library fbvector not found.")
 else()
-    message("[INFO] -- Found folly: ${LIBFOLLY}")
-endif()
-
-# find other libraries
-find_library(LIBMAUS2 maus2 PATHS "${METAGRAPH_DIR}/external-libraries/libmaus2/lib" NO_DEFAULT_PATH)
-if (NOT LIBMAUS2)
-    message("[INFO] -- Library maus2 not found.")
-else()
-    message("[INFO] -- Found maus2: ${LIBMAUS2}")
+    message("[INFO] -- Found fbvector: ${LIBFBVECTOR}")
 endif()
 find_library(LIBMERSENNE mersenne_twister PATHS "${METAGRAPH_DIR}/build" NO_DEFAULT_PATH)
 if (NOT LIBMERSENNE)
@@ -84,6 +73,11 @@ find_package(Threads REQUIRED)
 target_link_libraries(metagraph INTERFACE tbb)
 target_link_libraries(metagraph INTERFACE Threads::Threads)
 
+# jemalloc required for folly/fbvector
+list(APPEND CMAKE_MODULE_PATH "${METAGRAPH_DIR}") # metagraph contains custom FindJemalloc.cmake
+find_package(Jemalloc REQUIRED)
+target_link_libraries(metagraph INTERFACE ${JEMALLOC_LIBRARIES})
+
 target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/src")
 target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries")
 target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/DYNAMIC/include")
@@ -94,10 +88,7 @@ target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external
 target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/sdsl-lite/include")
 
 target_link_libraries(metagraph INTERFACE ${METAGRAPH_LIB})
-if(LIBFOLLY)
-    target_link_libraries(metagraph INTERFACE ${LIBFOLLY})
-endif()
-target_link_libraries(metagraph INTERFACE ${LIBMAUS2})
+target_link_libraries(metagraph INTERFACE ${LIBFBVECTOR})
 target_link_libraries(metagraph INTERFACE ${LIBMERSENNE})
 target_link_libraries(metagraph INTERFACE ${LIBOMP})
 target_link_libraries(metagraph INTERFACE ${LIBPROGRESSBAR})

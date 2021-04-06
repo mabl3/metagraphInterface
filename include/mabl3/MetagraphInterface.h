@@ -80,7 +80,7 @@ public:
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- input file " + graphFile + " corrupted");
         }
         auto annotation = std::make_unique<mtg::annot::RowCompressed<std::string>>(0, false);
-        if (!annotation->load(annotationFilebase)) {
+        if (!annotation->merge_load({annotationFilebase})) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- can't load annotations for graph "
                                      + filebase + ".dbg, file "
                                      + annotationFilebase + ".row.annodbg corrupted");
