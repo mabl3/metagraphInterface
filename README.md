@@ -13,8 +13,8 @@ save you from quite some pain. In your projects `CMakeLists.txt`, add
 This will take care of everything and make the `metagraphInterface` target
 available for linking with your own targets.
 
-When building your project, you will have to point CMake to the metagraph build (and maybe to Folly),
-see below for the two options `-DMETAGRAPH_PROJECT_ROOT` and `-DFOLLY_PATH`.
+When building your project, you will have to point CMake to the metagraph build,
+see below for the option `-DMETAGRAPH_PROJECT_ROOT`.
 
 ## Unit Tests
 
@@ -32,12 +32,12 @@ Out of source build using CMake
 
 ```
 $ mkdir -p test/build && cd test/build
-$ cmake .. -DMETAGRAPH_PROJECT_ROOT=/path/to/projects2014-metagenome
+$ cmake .. -DMETAGRAPH_PROJECT_ROOT=/path/to/metagraph
 $ make
 ```
 
-If you have built `metagraph` with Folly but Folly is in a non-standard location,
-specify the path to `libfolly.a` in the `cmake` command using `-DFOLLY_PATH=/path/to/folly/lib`
+Note that you need to build metagraph from source, this interface is
+not compatible with the conda or docker images.
 
 ### Running Unit tests
 
