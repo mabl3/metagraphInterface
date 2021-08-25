@@ -68,7 +68,7 @@ endif()
 # g++ needs the flag -latomic but CMake does not find atomic for whatever reason.
 # Thus, query the GCC major version to construct the correct hint path
 string(REGEX MATCH "^[0-9]+" CXXMAJOR ${CMAKE_CXX_COMPILER_VERSION}) # CMAKE_CXX_COMPILER_VERSION is e.g. "10.3.0", we only need the "10"
-find_library(ATOMIC atomic HINTS "/usr/lib/gcc/x86_64-linux-gnu/${CXXMAJOR}")
+find_library(ATOMIC atomic HINTS "/usr/lib/gcc/x86_64-linux-gnu/${CXXMAJOR}" "~/.linuxbrew/lib/gcc/${CXXMAJOR}")
 if (NOT ATOMIC)
     message("[INFO] -- Library atomic not found.")
 else()
