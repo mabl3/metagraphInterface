@@ -65,6 +65,16 @@ else()
     message("[INFO] -- Found spdlog: ${LIBSPDLOG}")
 endif()
 
+# g++ needs the flag -latomic but CMake does not find atomic for whatever reason.
+# Thus, query the GCC major version to construct the correct hint path
+string(REGEX MATCH "^[0-9]+" CXXMAJOR ${CMAKE_CXX_COMPILER_VERSION}) # CMAKE_CXX_COMPILER_VERSION is e.g. "10.3.0", we only need the "10"
+find_library(ATOMIC atomic HINTS "/usr/lib/gcc/x86_64-linux-gnu/${CXXMAJOR}")
+if (NOT ATOMIC)
+    message("[INFO] -- Library atomic not found.")
+else()
+    message("[INFO] -- Found atomic: ${ATOMIC}")
+endif()
+
 # assemble metagraph target
 add_library(metagraph INTERFACE)
 
@@ -94,6 +104,7 @@ target_link_libraries(metagraph INTERFACE ${LIBOMP})
 target_link_libraries(metagraph INTERFACE ${LIBPROGRESSBAR})
 target_link_libraries(metagraph INTERFACE ${LIBSDSL})
 target_link_libraries(metagraph INTERFACE ${LIBSPDLOG})
+target_link_libraries(metagraph INTERFACE ${ATOMIC})
 
 target_compile_definitions(metagraph INTERFACE ${METAGRAPH_GRAPH_TYPE_FLAG})
 
