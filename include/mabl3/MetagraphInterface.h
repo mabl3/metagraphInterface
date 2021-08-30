@@ -92,8 +92,7 @@ public:
                                      + annotationFilebase + ".column_coord.annodbg corrupted");
         }
         // store pointer to annotated graph
-        graph_ = std::make_unique<mtg::graph::AnnotatedDBG>(graph,
-                                                            std::unique_ptr<mtg::annot::MultiLabelEncoded<std::string>>(annotation.release()));
+        graph_ = std::make_unique<mtg::graph::AnnotatedDBG>(graph, std::move(annotation));
         if (!graph_->check_compatibility()) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- Graph and Annotation are incompatible.");
         }
@@ -106,22 +105,16 @@ graph_->get_graph().call_sequences(
             auto kmer = contig.substr(i,graph_->get_graph().get_k());
             std::cout << kmer << std::endl;
 
-            auto const & labels = graph_->get_labels(ids[i]);
-            for (auto&& label : labels) {
-                std::cout << "\t" << label << std::endl;
-            }
-            /*auto const & coords = graph_->get_kmer_coordinates(kmer, -1, 0.7, 0); // std::vector<std::pair<std::string, std::vector<SmallVector<uint64_t>>>>
-            for (auto&& coord : coords) {
+            auto const & coords = graph_->get_kmer_coordinates(ids[i], -1, 0, 0); // std::vector<std::pair<std::string, std::vector<SmallVector<uint64_t>>>>
+            for (const auto & coord : coords) {
                 std::cout << "\t" << coord.first << "\t[";
-                for (auto&& cs : coord.second) {
-                    std::cout << "[";
-                    for (auto&& elem : cs) {
-                        std::cout << elem << ", ";
-                    }
-                    std::cout << "], ";
+                assert(coord.second.size() == 1 && "there is only 1 k-mer");
+                const auto & cs = coord.second;
+                for (auto elem : cs) {
+                    std::cout << elem << ", ";
                 }
                 std::cout << "]" << std::endl;
-            }*/
+            }
             std::cout << std::endl;
         }
     });
