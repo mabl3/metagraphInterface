@@ -57,9 +57,9 @@ target_link_libraries(testMetagraphInterface PRIVATE json)
 set(PYSCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/testdata/generateTestdata.py")
 set(PYARG1 "--metagraph")
 set(PYARG2 "${METAGRAPH_DIR_PARENT}/build/metagraph")
-message("[INFO] -- Running python3 ${PYSCRIPT} ${PYARG1} ${PYARG2} in working directory ${CMAKE_CURRENT_SOURCE_DIR}/testdata/")
-execute_process(COMMAND "python3" ${PYSCRIPT} ${PYARG1} ${PYARG2}
-                WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/testdata/"
-                OUTPUT_VARIABLE CMDOUT
-                ERROR_VARIABLE CMDOUT)
-message(${CMDOUT})
+#message("[INFO] -- Running python3 ${PYSCRIPT} ${PYARG1} ${PYARG2} in working directory ${CMAKE_CURRENT_SOURCE_DIR}/testdata/")
+#execute_process(COMMAND "python3" ${PYSCRIPT} ${PYARG1} ${PYARG2}
+#                WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/testdata/"
+#                OUTPUT_VARIABLE CMDOUT
+#                ERROR_VARIABLE CMDOUT)
+#message(${CMDOUT})

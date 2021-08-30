@@ -1,6 +1,7 @@
 import argparse
 import json
 import math
+import multiprocessing
 import os
 import random
 import re
@@ -221,12 +222,30 @@ for gid in sequences:
             fh.writelines(sequences[gid][sid]+"\n")
             fh.writelines("\n")
     
-buildCommand = metagraphBin + " build -k " + str(k) + " --index-ranges 6 -o testdataGraph *.fa"
+graphFileBase = "testdataGraph"
+
+# clean directory
+for f in os.listdir():
+    if os.path.isfile(f) and f[0:len(graphFileBase)] == graphFileBase:
+        print("Cleanup: removing existing file '"+f+"'")
+        os.remove(f)
+
+buildCommand = metagraphBin + " build -k " + str(k) + " --index-ranges 6 -p " + str(multiprocessing.cpu_count()) + " -o testdataGraph *.fa"
 print("Running", buildCommand)
 subprocess.run([buildCommand], shell = True, executable = '/bin/bash')
 
-coordinateCommant = metagraphBin + " coordinate -i testdataGraph.dbg --coord-binsize " + str(binsize) + " *.fa"
-print("Running", coordinateCommant)
-subprocess.run([coordinateCommant], shell = True, executable = '/bin/bash')
+#coordinateCommant = metagraphBin + " coordinate -i testdataGraph.dbg --coord-binsize " + str(binsize) + " *.fa"
+#print("Running", coordinateCommant)
+#subprocess.run([coordinateCommant], shell = True, executable = '/bin/bash')
+
+# try new coordinate annotation
+#coordinateCommand = metagraphBin + " annotate --coordinates --anno-filename --anno-header -p " + str(multiprocessing.cpu_count()) + " -i testdataGraph.dbg -o testdataGraph *.fa"
+coordinateCommand = metagraphBin + " annotate --coordinates --anno-header -p " + str(multiprocessing.cpu_count()) + " -i testdataGraph.dbg -o testdataGraph *.fa"
+print("Running", coordinateCommand)
+subprocess.run([coordinateCommand], shell = True, executable = '/bin/bash')
+
+transformCommand = metagraphBin + " transform_anno --anno-type column_coord -p " + str(multiprocessing.cpu_count()) + " -o testdataGraph testdataGraph.column.annodbg"
+print("Running", transformCommand)
+subprocess.run([transformCommand], shell = True, executable = '/bin/bash')
 
 sys.exit()

@@ -16,7 +16,8 @@ TEST_CASE("Metagraph Interface") {
     // load graph
     std::string const testdatapath{TESTDATAPATH};
     auto graph = MetagraphInterface(testdatapath + "/testdataGraph.dbg",
-                                    testdatapath + "/testdataGraph.row.annodbg");
+                                    //testdatapath + "/testdataGraph.row.annodbg");
+                                    testdatapath + "/testdataGraph.column_coord.annodbg");
     REQUIRE(graph.getK() == (size_t)39);
     SECTION("Check Annotations") {
         // test parseAllAnnotations

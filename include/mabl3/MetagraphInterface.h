@@ -8,7 +8,9 @@
 #include <tbb/concurrent_queue.h>
 #include <graph/annotated_dbg.hpp>
 #include <graph/representation/succinct/dbg_succinct.hpp>
-#include <annotation/representation/row_compressed/annotate_row_compressed.hpp>
+//#include <annotation/representation/row_compressed/annotate_row_compressed.hpp>
+//#include <annotation/representation/column_compressed/annotate_column_compressed.hpp>
+#include <annotation/representation/annotation_matrix/static_annotators_def.hpp>
 #include <common/utils/file_utils.hpp>
 
 class MetagraphInterface {
@@ -69,7 +71,8 @@ public:
             std::equal(filetype.rbegin(), filetype.rend(), graphFile.rbegin())
                 ? graphFile.substr(0, graphFile.size() - filetype.size())
                 : graphFile;
-        std::string annotationFiletype = ".row.annodbg";
+        //std::string annotationFiletype = ".row.annodbg";
+        std::string annotationFiletype = ".column_coord.annodbg";
         std::string annotationFilebase =
             std::equal(annotationFiletype.rbegin(), annotationFiletype.rend(), annotationFile.rbegin())
                 ? annotationFile.substr(0, annotationFile.size() - annotationFiletype.size())
@@ -79,11 +82,14 @@ public:
         if (!graph->load(filebase)) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- input file " + graphFile + " corrupted");
         }
-        auto annotation = std::make_unique<mtg::annot::RowCompressed<std::string>>(0, false);
-        if (!annotation->merge_load({annotationFilebase})) {
+        //auto annotation = std::make_unique<mtg::annot::RowCompressed<std::string>>(0, false);
+        auto annotation = std::make_unique<mtg::annot::ColumnCoordAnnotator>();
+        //if (!annotation->merge_load({annotationFilebase})) {
+        if (!annotation->load(annotationFilebase+".column_coord.annodbg")) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- can't load annotations for graph "
                                      + filebase + ".dbg, file "
-                                     + annotationFilebase + ".row.annodbg corrupted");
+                                     //+ annotationFilebase + ".row.annodbg corrupted");
+                                     + annotationFilebase + ".column_coord.annodbg corrupted");
         }
         // store pointer to annotated graph
         graph_ = std::make_unique<mtg::graph::AnnotatedDBG>(graph,
@@ -92,6 +98,36 @@ public:
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- Graph and Annotation are incompatible.");
         }
         std::cout << numNodes() << " nodes in graph " << graphFile << std::endl;
+
+std::cout << "[DEBUG] -- Try Graph Iteration" << std::endl;
+graph_->get_graph().call_sequences(
+    [this](std::string const & contig, std::vector<NodeID> const & ids){
+        for (size_t i = 0; i <= contig.size() - graph_->get_graph().get_k(); ++i) {
+            auto kmer = contig.substr(i,graph_->get_graph().get_k());
+            std::cout << kmer << std::endl;
+
+            auto const & labels = graph_->get_labels(ids[i]);
+            for (auto&& label : labels) {
+                std::cout << "\t" << label << std::endl;
+            }
+            /*auto const & coords = graph_->get_kmer_coordinates(kmer, -1, 0.7, 0); // std::vector<std::pair<std::string, std::vector<SmallVector<uint64_t>>>>
+            for (auto&& coord : coords) {
+                std::cout << "\t" << coord.first << "\t[";
+                for (auto&& cs : coord.second) {
+                    std::cout << "[";
+                    for (auto&& elem : cs) {
+                        std::cout << elem << ", ";
+                    }
+                    std::cout << "], ";
+                }
+                std::cout << "]" << std::endl;
+            }*/
+            std::cout << std::endl;
+        }
+    });
+std::cout << "[DEBUG] -- Finished Graph Iteration" << std::endl;
+throw std::runtime_error("STOP");
+
     }
     //! Get annotation of a node
     std::vector<NodeAnnotation> getAnnotation(NodeID const nodeID) const {
