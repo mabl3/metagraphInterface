@@ -82,6 +82,7 @@ public:
         if (!graph->load(filebase)) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- input file " + graphFile + " corrupted");
         }
+std::cout << "[DEBUG] -- Graph Loaded" << std::endl;
         //auto annotation = std::make_unique<mtg::annot::RowCompressed<std::string>>(0, false);
         auto annotation = std::make_unique<mtg::annot::ColumnCoordAnnotator>();
         //if (!annotation->merge_load({annotationFilebase})) {
@@ -91,6 +92,7 @@ public:
                                      //+ annotationFilebase + ".row.annodbg corrupted");
                                      + annotationFilebase + ".column_coord.annodbg corrupted");
         }
+std::cout << "[DEBUG] -- Annotation Loaded" << std::endl;
         // store pointer to annotated graph
         graph_ = std::make_unique<mtg::graph::AnnotatedDBG>(graph, std::move(annotation));
         if (!graph_->check_compatibility()) {
@@ -99,17 +101,30 @@ public:
         std::cout << numNodes() << " nodes in graph " << graphFile << std::endl;
 
 std::cout << "[DEBUG] -- Try Graph Iteration" << std::endl;
+
+auto const & coords = graph_->get_kmer_coordinates("ATCGG", -1, 0, 0); // std::vector<std::pair<std::string, std::vector<SmallVector<uint64_t>>>>
+for (const auto & coord : coords) {
+    std::cout << "\t" << coord.first << "\t[";
+    assert(coord.second.size() == 1 && "there is only 1 k-mer");
+    const auto & cs = coord.second.at(0);
+    for (auto elem : cs) {
+        std::cout << elem << ", ";
+    }
+    std::cout << "]" << std::endl;
+}
+std::cout << std::endl;
+/*
 graph_->get_graph().call_sequences(
     [this](std::string const & contig, std::vector<NodeID> const & ids){
         for (size_t i = 0; i <= contig.size() - graph_->get_graph().get_k(); ++i) {
             auto kmer = contig.substr(i,graph_->get_graph().get_k());
             std::cout << kmer << std::endl;
 
-            auto const & coords = graph_->get_kmer_coordinates(ids[i], -1, 0, 0); // std::vector<std::pair<std::string, std::vector<SmallVector<uint64_t>>>>
+            auto const & coords = graph_->get_kmer_coordinates({ids[i]}, -1, 0, 0); // std::vector<std::pair<std::string, std::vector<SmallVector<uint64_t>>>>
             for (const auto & coord : coords) {
                 std::cout << "\t" << coord.first << "\t[";
                 assert(coord.second.size() == 1 && "there is only 1 k-mer");
-                const auto & cs = coord.second;
+                const auto & cs = coord.second.at(0);
                 for (auto elem : cs) {
                     std::cout << elem << ", ";
                 }
@@ -117,7 +132,7 @@ graph_->get_graph().call_sequences(
             }
             std::cout << std::endl;
         }
-    });
+    });*/
 std::cout << "[DEBUG] -- Finished Graph Iteration" << std::endl;
 throw std::runtime_error("STOP");
 

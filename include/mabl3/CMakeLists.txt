@@ -99,6 +99,8 @@ target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external
 target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/binrel_wt/include")
 target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/caches/include")
 target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/DYNAMIC/include")
+target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/folly")
+target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/build/external-libraries/folly/include")
 target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/hopscotch-map/include")
 target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/ips4o")
 target_include_directories(metagraph SYSTEM INTERFACE "${METAGRAPH_DIR}/external-libraries/ordered-map/include")
@@ -117,6 +119,7 @@ target_link_libraries(metagraph INTERFACE ${LIBSPDLOG})
 target_link_libraries(metagraph INTERFACE ${ATOMIC})
 
 target_compile_definitions(metagraph INTERFACE ${METAGRAPH_GRAPH_TYPE_FLAG})
+target_compile_definitions(metagraph INTERFACE "-D_USE_FOLLY") # just always use this, otherwise SIGSEGV when iterating annotations
 
 # add interface target
 add_library(metagraphInterface STATIC MetagraphInterface.cpp)

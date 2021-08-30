@@ -8,16 +8,18 @@
 #include "loadExpectedTestdata.h"
 
 TEST_CASE("Metagraph Interface") {
+    // load graph
+    std::string const testdatapath{TESTDATAPATH};
+std::cout << "[DEBUG] -- Loading from " << testdatapath << std::endl;
+    auto graph = MetagraphInterface(testdatapath + "/testdataGraph.dbg",
+                                    //testdatapath + "/testdataGraph.row.annodbg");
+                                    testdatapath + "/testdataGraph.column_coord.annodbg");
+
     // load expected data
     auto expectedKmers = getExpectedKmers();
     auto expectedKmerNeighbours = getExpectedNeighbours();
     std::cout << expectedKmers.size() << " kmers in test data" << std::endl;
 
-    // load graph
-    std::string const testdatapath{TESTDATAPATH};
-    auto graph = MetagraphInterface(testdatapath + "/testdataGraph.dbg",
-                                    //testdatapath + "/testdataGraph.row.annodbg");
-                                    testdatapath + "/testdataGraph.column_coord.annodbg");
     REQUIRE(graph.getK() == (size_t)39);
     SECTION("Check Annotations") {
         // test parseAllAnnotations
