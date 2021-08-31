@@ -16,15 +16,13 @@ auto getExpectedKmers() {
     json j;
     is >> j;
 
-    std::unordered_map<std::string, std::vector<MetagraphInterface::NodeAnnotation>> expectedKmers;
+    std::unordered_map<std::string, std::vector<mabl3::MetagraphInterface::NodeAnnotation>> expectedKmers;
     for (auto&& elem : j.items()) {
         auto kmer = elem.key();
-        std::vector<MetagraphInterface::NodeAnnotation> annotations;
+        std::vector<mabl3::MetagraphInterface::NodeAnnotation> annotations;
         for (auto&& anno : elem.value()) {
-            annotations.emplace_back(MetagraphInterface::NodeAnnotation{anno[0].get<std::string>(),
-                                                                        anno[1].get<std::string>(),
-                                                                        anno[2].get<bool>(),
-                                                                        anno[3].get<size_t>()});
+            annotations.emplace_back(mabl3::MetagraphInterface::NodeAnnotation{anno[0].get<std::string>(),
+                                                                               anno[1].get<std::vector<size_t>>()});
         }
         std::sort(annotations.begin(), annotations.end());
         expectedKmers.emplace(kmer, annotations);

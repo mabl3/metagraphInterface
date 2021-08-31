@@ -8,15 +8,25 @@ import re
 import subprocess
 import sys
 
+thisdir = os.path.abspath(os.path.dirname(__file__))
+assumeBuildScript = os.path.join(thisdir, "../../script/createGraph.py")
+
 parser = argparse.ArgumentParser(description = "Create testdata",
                                  formatter_class = argparse.RawTextHelpFormatter)
 scriptArgs = parser.add_argument_group("Script Arguments")
-scriptArgs.add_argument("--binsize",
-                        dest = "binsize", 
-                        metavar = "INT", 
-                        type=int,
-                        default=100,
-                        help="binsize of metagraph")
+#scriptArgs.add_argument("--binsize",
+#                        dest = "binsize", 
+#                        metavar = "INT", 
+#                        type=int,
+#                        default=100,
+#                        help="binsize of metagraph")
+scriptArgs.add_argument("--create-graph-script",
+                        dest = "buildscript", 
+                        metavar = "FILE", 
+                        type=argparse.FileType("r"),
+                        default = assumeBuildScript,
+                        help="Path to createGraph.py")#, 
+                        #required = True)
 scriptArgs.add_argument("--k",
                         dest = "k", 
                         metavar = "INT", 
@@ -67,7 +77,7 @@ sequenceLength = args.seqlen
 # k in graph
 k = args.k
 # bin size in graph
-binsize = args.binsize
+#binsize = args.binsize
 
 assert numSpecies >= 2
 assert numSequencesPerSpecies >= 1
@@ -76,7 +86,7 @@ assert similarity < 1
 assert sequenceLength >= 1
 assert k > 2
 assert sequenceLength >= k
-assert binsize >= 1
+#assert binsize >= 1
 
 
 # find out which alphabet metagraph uses
@@ -106,7 +116,7 @@ def generateSequence(seqLength):
     return("".join(random.choices(["A","C","G","T"], k=seqLength)))
 
 
-def generateSimilarSequence(inputSeq, similarity):
+def generateSimilarSequence(inputSeq, similarity, caseSensitive=caseSensitive):
     assert(similarity <= 1)
     assert(similarity > 0)
 
@@ -142,7 +152,7 @@ for gid in range(numSpecies):
         sequences[gid][sid] = ""
 
 for sid in range(numSequencesPerSpecies):
-    baseSeq = generateSequence(sequenceLength)
+    baseSeq = generateSimilarSequence(generateSequence(sequenceLength), 1)
     sequences[0][sid] = baseSeq[0:-4] + "ACGT" # make sure seq ends in ACGT (not important here)
     for gid in range(1,numSpecies):
         sequences[gid][sid] = generateSimilarSequence(sequences[gid-1][sid], similarity)
@@ -152,38 +162,41 @@ for sid in range(numSequencesPerSpecies):
 sequences[0][0] = sequences[0][0][0:k] + sequences[0][0][0:k] + sequences[0][0][(2*k):]
 assert(len(sequences[0][0]) == sequenceLength)
 # higher possibility that kmers are not present in each sequence
-if k >= binsize and sequenceLength >= 3*binsize:
-    sequences[1][0][2*binsize:3*binsize] = "N"*binsize
+#if k >= binsize and sequenceLength >= 3*binsize:
+#    sequences[1][0][2*binsize:3*binsize] = "N"*binsize
 
 # create data expected from graph
 def genomeName(gid):
     return("genome"+str(gid)+".fa")
 
-def sequenceName(sid):
-    return("sequence"+str(sid))
+def sequenceName(sid, gid):
+    return("sequence"+str(sid)+"_genome"+str(gid))
 
 kmers = dict()
 for gid in sequences:
     for sid in sequences[gid]:
         seq = sequences[gid][sid]
+        seqname = sequenceName(sid, gid)
         for i in range(0, len(seq)-k+1):
             kmer = seq[i:(i+k)]
             assert(len(kmer) == k)
             # only add kmers that fit the alphabet
             if re.match("["+alphabet+"]{"+str(k)+"}", kmer):
-                binIdx = math.floor(i/binsize) * binsize
-                occ = tuple([genomeName(gid), sequenceName(sid), False, binIdx])
+                #occ = [genomeName(gid), sequenceName(sid, gid), False, i]
                 if kmer not in kmers:
-                    kmers[kmer] = set() # set assumes that for kmers occuring >once in a bin, annotation is only reported once
-                    
-                kmers[kmer].add(occ)
+                    kmers[kmer] = {}
 
-# need to convert sets and tuples to lists for json
+                if seqname not in kmers[kmer]:
+                    kmers[kmer][seqname] = []
+                    
+                kmers[kmer][seqname].append(i) # collect positions of that kmer in that sequence
+
+# condense sequence and position info into flat lists to resemble NodeAnnotation in C++
 for kmer in kmers:
-    occset = kmers[kmer]
+    seqset = dict(kmers[kmer])
     kmers[kmer] = []
-    for occ in occset:
-        kmers[kmer].append(list(occ))
+    for seqname in seqset:
+        kmers[kmer].append([seqname, list(seqset[seqname])]) # {kmer => [[sequencename, [pos1, pos2, ...]], ...], ...}
 
 kmerNeighbours = dict()
 for kmer in kmers:
@@ -218,7 +231,7 @@ with open("expectedKmerNeighbours.json", "w") as fh:
 for gid in sequences:
     with open(genomeName(gid), "w") as fh:
         for sid in sequences[gid]:
-            fh.writelines(">"+sequenceName(sid)+"\n")
+            fh.writelines(">"+sequenceName(sid, gid)+"\n")
             fh.writelines(sequences[gid][sid]+"\n")
             fh.writelines("\n")
     
@@ -230,22 +243,9 @@ for f in os.listdir():
         print("Cleanup: removing existing file '"+f+"'")
         os.remove(f)
 
-buildCommand = metagraphBin + " build -k " + str(k) + " --index-ranges 6 -p " + str(multiprocessing.cpu_count()) + " -o testdataGraph *.fa"
-print("Running", buildCommand)
-subprocess.run([buildCommand], shell = True, executable = '/bin/bash')
-
-#coordinateCommant = metagraphBin + " coordinate -i testdataGraph.dbg --coord-binsize " + str(binsize) + " *.fa"
-#print("Running", coordinateCommant)
-#subprocess.run([coordinateCommant], shell = True, executable = '/bin/bash')
-
-# try new coordinate annotation
-#coordinateCommand = metagraphBin + " annotate --coordinates --anno-filename --anno-header -p " + str(multiprocessing.cpu_count()) + " -i testdataGraph.dbg -o testdataGraph *.fa"
-coordinateCommand = metagraphBin + " annotate --coordinates --anno-header -p " + str(multiprocessing.cpu_count()) + " -i testdataGraph.dbg -o testdataGraph *.fa"
-print("Running", coordinateCommand)
-subprocess.run([coordinateCommand], shell = True, executable = '/bin/bash')
-
-transformCommand = metagraphBin + " transform_anno --anno-type column_coord -p " + str(multiprocessing.cpu_count()) + " -o testdataGraph testdataGraph.column.annodbg"
-print("Running", transformCommand)
-subprocess.run([transformCommand], shell = True, executable = '/bin/bash')
+# call graph building script
+buildCommand = "python3 " + args.buildscript.name + " --input *.fa --k " + str(k) + " --metagraph " + metagraphBin + " --output ./testdataGraph"
+print("Running", buildCommand, flush = True)
+subprocess.run([buildCommand], shell = True, executable = '/bin/bash', stdout=sys.stdout, stderr=subprocess.STDOUT)
 
 sys.exit()
