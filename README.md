@@ -16,6 +16,17 @@ available for linking with your own targets.
 When building your project, you will have to point CMake to the metagraph build,
 see below for the option `-DMETAGRAPH_PROJECT_ROOT`.
 
+## Build Graph
+
+Use the script `script/createGraph.py` to create an annotated graph from Fasta files!
+
+The interface requires that the metagraph was built and annotated in a certain way, above script will take care of doing this.
+The script will create a `*.dbg` and a `*.column_coord.annodbg` file, those are the graph and annotation files you can use
+with the `MetagraphInterface` class.
+
+**Note:** The annotation only stores fasta sequence headers, thus they must be unique! `createGraph.py` will also output a
+mapping of fasta file names and sequence headers in JSON format.
+
 ## Unit Tests
 
 Clone this repo recursively
@@ -43,7 +54,9 @@ not compatible with the conda or docker images.
 
 #### Creating Testdata
 
-First you need to generate data to run the tests on
+CMake will do this step for you when compiling the unit tests
+
+You can also do this manually (not necessary anymore when using CMake):
 
 ```
 $ cd test/testdata
