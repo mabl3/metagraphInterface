@@ -19,16 +19,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 # create interface library targets from other libs
 add_library(catch2 INTERFACE)
 target_include_directories(catch2 SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/Catch2/single_include")
-#add_library(cpp-json-outstream INTERFACE)
-#target_include_directories(cpp-json-outstream SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/cpp-json-outstream/include")
-#add_library(cpp-progress-bar INTERFACE)
-#target_include_directories(cpp-progress-bar SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/cpp-progress-bar/include")
-#add_library(cpp-timestep INTERFACE)
-#target_include_directories(cpp-timestep SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/cpp-timestep/include")
-#add_library(cxx-prettyprint INTERFACE)
-#target_include_directories(cxx-prettyprint SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/cxx-prettyprint")
-#add_library(hopscotch-map INTERFACE)
-#target_include_directories(hopscotch-map SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/hopscotch-map/include")
 add_library(json INTERFACE)
 target_include_directories(json SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/lib/json/single_include")
 
@@ -59,8 +49,16 @@ set(PYARG1 "--metagraph")
 set(PYARG2 "${METAGRAPH_DIR_PARENT}/build/metagraph")
 set(PYARG3 "--k")
 set(PYARG4 "12")
+
+#set(PYARG5 "--nsequences")
+#set(PYARG6 "1")
+#set(PYARG7 "--nspecies")
+#set(PYARG8 "3")
+#set(PYARG9 "--sequence-lengths")
+#set(PYARG10 "50")
+
 message("[INFO] -- Running python3 ${PYSCRIPT} ${PYARG1} ${PYARG2} in working directory ${CMAKE_CURRENT_SOURCE_DIR}/testdata/")
-execute_process(COMMAND "python3" ${PYSCRIPT} ${PYARG1} ${PYARG2} ${PYARG3} ${PYARG4}
+execute_process(COMMAND "python3" ${PYSCRIPT} ${PYARG1} ${PYARG2} ${PYARG3} ${PYARG4} #${PYARG5} ${PYARG6} ${PYARG7} ${PYARG8} ${PYARG9} ${PYARG10}
                 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/testdata/"
                 OUTPUT_VARIABLE CMDOUT
                 ERROR_VARIABLE CMDOUT)

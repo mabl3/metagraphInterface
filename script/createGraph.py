@@ -1,14 +1,13 @@
 """
-    Create a metagraph file, an annotation file, a sequence header mapping and position correction.
+    Create a metagraph file, an annotation file and a sequence header mapping.
 
     The graph and annotation files can be loaded in C++ with `MetagraphInterface`,
     each k-mer is annotated with its sequence headers and the exact positions.
 
-    The mappings and position correction are stored in two JSON files, 
-    one maps the filename to the sequence headers that are present in that file, 
-    the other maps each sequence header to the respective filename and the correction
-    maps each sequence header to a position correction value, needed for MetagraphInterface. 
-    The mappings can be used in seedFinding to prepare a valid IdentifierMapping.
+    The mappings are stored in two JSON files, one maps the filename to the 
+    sequence headers that are present in that file, the other maps each sequence 
+    header to the respective filename. The mappings can be used in seedFinding 
+    to prepare a valid IdentifierMapping.
 
     If sequence headers are ambiguous, the mapping will be incomplete and sequences
     will not be represented correctly!
@@ -51,6 +50,12 @@ scriptArgs.add_argument("--output",
                         type = str,
                         help = "Basename to use for metagraph files", 
                         required = True)
+scriptArgs.add_argument("--tmpdir",
+                        dest = "tmpdir", 
+                        metavar = "Path", 
+                        type = str,
+                        default = "/tmp/",
+                        help = "Temporary directory for intermediate files")
 args = parser.parse_args()
 metagraphBin = args.metagraph.name
 fastas = [f.name for f in args.input]
@@ -66,16 +71,25 @@ outpath = os.path.abspath(outpath)
 assert os.path.isdir(outpath), outpath + " is not a directory" 
 
 # create temporary working directory
-tmpdir = "/tmp/createGraph_" + secrets.token_hex(7)
+tmpdir = os.path.join(args.tmpdir, "createGraph_" + secrets.token_hex(7))
+tmpAnnoDir = os.path.join(tmpdir, "annotations")
 assert not os.path.exists(tmpdir), tmpdir + " already exists"
 os.mkdir(tmpdir)
+os.mkdir(tmpAnnoDir)
+assert os.path.exists(tmpdir), tmpdir + " could not be created"
+assert os.path.exists(tmpAnnoDir), tmpAnnoDir + " could not be created"
 
 # create graph
+tmpfilebase = os.path.join(tmpdir, outfilebase)
+buildCommand = metagraphBin + " build -k " + str(args.k) + " --index-ranges 6 -p " + str(multiprocessing.cpu_count()) + " -o " + tmpfilebase + " " + (" ".join(fastas))
+print("[INFO] >>> Running", buildCommand)
+subprocess.run([buildCommand], shell = True, executable = '/bin/bash')
+
+# create annotations
 seenSeqs = set() # check if all sequence headers are unique, warn if not
 seqToFile = {}
 fileToSeq = {}
-seqToCorrection = {}
-posCorrection = 0
+i = 0
 for fasta in fastas:
     _, fastaname = os.path.split(fasta)
     genome, _ = os.path.splitext(fastaname)
@@ -87,24 +101,21 @@ for fasta in fastas:
             print("[WARNING] >>> Sequence ID '"+seq.id+"' is ambiguous!")
 
         else:
+            tmpfile = os.path.join(tmpAnnoDir, str(i)+".fa")
+            with open(tmpfile, 'wt') as fh:
+                SeqIO.write(seq, fh, 'fasta')
+
+            annoCommand = metagraphBin + " annotate --coordinates --anno-header -i " + tmpfilebase + ".dbg -o " + os.path.join(tmpAnnoDir, outfilebase + "_"+str(i)) + " " + tmpfile
+            print("[INFO] >>> Running", annoCommand)
+            subprocess.run([annoCommand], shell = True, executable = '/bin/bash')
+
             seenSeqs.add(seq.id)
             fileToSeq[genome].append(seq.id)
             seqToFile[seq.id] = genome
-            seqToCorrection[seq.id] = posCorrection
-            posCorrection += (len(seq) - int(args.k) + 1)
+            i += 1
 
 
-
-tmpfilebase = os.path.join(tmpdir, outfilebase)
-buildCommand = metagraphBin + " build -k " + str(args.k) + " --index-ranges 6 -p " + str(multiprocessing.cpu_count()) + " -o " + tmpfilebase + " " + (" ".join(fastas))
-print("[INFO] >>> Running", buildCommand)
-subprocess.run([buildCommand], shell = True, executable = '/bin/bash')
-
-annoCommand = metagraphBin + " annotate --coordinates --anno-header --separately -p " + str(multiprocessing.cpu_count()) + " -i " + tmpfilebase + ".dbg -o " + tmpfilebase + "Annotations " + (" ".join(fastas))
-print("[INFO] >>> Running", annoCommand)
-subprocess.run([annoCommand], shell = True, executable = '/bin/bash')
-
-transformCommand = metagraphBin + " transform_anno --anno-type column_coord -p " + str(multiprocessing.cpu_count()) + " -o " + tmpfilebase + " " + tmpfilebase + "Annotations/*.column.annodbg"
+transformCommand = metagraphBin + " transform_anno --anno-type column_coord -p " + str(multiprocessing.cpu_count()) + " -o " + tmpfilebase + " " + os.path.join(tmpAnnoDir, "*.column.annodbg")
 print("[INFO] >>> Running", transformCommand)
 subprocess.run([transformCommand], shell = True, executable = '/bin/bash')
 
@@ -126,8 +137,5 @@ with open(args.basename+".seqToFile.json", 'wt') as fh:
 
 with open(args.basename+".fileToSeq.json", 'wt') as fh:
     json.dump(fileToSeq, fh)
-
-with open(args.basename+".positionCorrection.txt", 'wt') as fh:
-    fh.writelines([seq+"\n"+str(seqToCorrection[seq])+"\n\n" for seq in seqToCorrection])
 
 print("[INFO] >>> Done.")

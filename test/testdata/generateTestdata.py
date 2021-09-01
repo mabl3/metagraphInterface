@@ -14,19 +14,12 @@ assumeBuildScript = os.path.join(thisdir, "../../script/createGraph.py")
 parser = argparse.ArgumentParser(description = "Create testdata",
                                  formatter_class = argparse.RawTextHelpFormatter)
 scriptArgs = parser.add_argument_group("Script Arguments")
-#scriptArgs.add_argument("--binsize",
-#                        dest = "binsize", 
-#                        metavar = "INT", 
-#                        type=int,
-#                        default=100,
-#                        help="binsize of metagraph")
 scriptArgs.add_argument("--create-graph-script",
                         dest = "buildscript", 
                         metavar = "FILE", 
                         type=argparse.FileType("r"),
                         default = assumeBuildScript,
-                        help="Path to createGraph.py")#, 
-                        #required = True)
+                        help="Path to createGraph.py")
 scriptArgs.add_argument("--k",
                         dest = "k", 
                         metavar = "INT", 
@@ -63,6 +56,12 @@ scriptArgs.add_argument("--similarity",
                         type=float,
                         default=0.85,
                         help="sequence similarity between neighbouring species")
+scriptArgs.add_argument("--tmpdir",
+                        dest = "tmpdir", 
+                        metavar = "Path", 
+                        type = str,
+                        default = "/tmp/",
+                        help = "Temporary directory for intermediate files")
 args = parser.parse_args()
 metagraphBin = args.metagraph.name
 
@@ -76,8 +75,6 @@ similarity = args.similarity
 sequenceLength = args.seqlen
 # k in graph
 k = args.k
-# bin size in graph
-#binsize = args.binsize
 
 assert numSpecies >= 2
 assert numSequencesPerSpecies >= 1
@@ -86,8 +83,6 @@ assert similarity < 1
 assert sequenceLength >= 1
 assert k > 2
 assert sequenceLength >= k
-#assert binsize >= 1
-
 
 # find out which alphabet metagraph uses
 alphabet = ""
@@ -161,9 +156,6 @@ for sid in range(numSequencesPerSpecies):
 # make sure that at least one kmer occurs twice in the same bin
 sequences[0][0] = sequences[0][0][0:k] + sequences[0][0][0:k] + sequences[0][0][(2*k):]
 assert(len(sequences[0][0]) == sequenceLength)
-# higher possibility that kmers are not present in each sequence
-#if k >= binsize and sequenceLength >= 3*binsize:
-#    sequences[1][0][2*binsize:3*binsize] = "N"*binsize
 
 # create data expected from graph
 def genomeName(gid):
@@ -182,7 +174,6 @@ for gid in sequences:
             assert(len(kmer) == k)
             # only add kmers that fit the alphabet
             if re.match("["+alphabet+"]{"+str(k)+"}", kmer):
-                #occ = [genomeName(gid), sequenceName(sid, gid), False, i]
                 if kmer not in kmers:
                     kmers[kmer] = {}
 
@@ -244,7 +235,7 @@ for f in os.listdir():
         os.remove(f)
 
 # call graph building script
-buildCommand = "python3 " + args.buildscript.name + " --input *.fa --k " + str(k) + " --metagraph " + metagraphBin + " --output ./testdataGraph"
+buildCommand = "python3 " + args.buildscript.name + " --input *.fa --k " + str(k) + " --metagraph " + metagraphBin + " --output ./testdataGraph" + " --tmpdir " + args.tmpdir
 print("Running", buildCommand, flush = True)
 subprocess.run([buildCommand], shell = True, executable = '/bin/bash', stdout=sys.stdout, stderr=subprocess.STDOUT)
 

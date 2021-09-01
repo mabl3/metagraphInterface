@@ -13,47 +13,6 @@
 
 namespace mabl3 {
 
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * Avoid including a third party library, use simple table parser here
- *
- * Required data format: text file with multiple lines
- *
- *     sequence_header_1
- *     x
- *     sequence_header_2
- *     y
- *     ...
- *
- * Mapping must be written in blocks of two lines,
- * the first line containing the sequence header as stored in the
- * graph, the second line containing a single integer number (the
- * correction value) */
-
-namespace parse {
-
-auto parsePositionCorrectionFile(std::string filename) {
-    std::unordered_map<std::string, size_t> correction;
-    std::ifstream is{filename};
-    if (!is.is_open()) {
-        throw std::runtime_error("[ERROR] -- parsePositionCorrectionFile -- Could not open "+filename);
-    }
-    std::string line{};
-    std::string head{};
-    while(is >> line) {
-        if (head.empty()) {
-            head = line;
-        } else {
-            correction[head] = std::stoull(line);
-            head.clear();
-        }
-    }
-    return correction;
-}
-
-} // namespace parse
-
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
 class MetagraphInterface {
 public:
     //! Annotation of a node returned from metagraph
@@ -80,19 +39,6 @@ public:
             return out;
         }
     };
-    /*struct RedundantNodeAnnotation : NodeAnnotation {
-        RedundantNodeAnnotation(std::string const & _genome,
-                                std::string const & _sequence,
-                                bool _reverse_strand,
-                                size_t _position,
-                                std::string const & _annotationString)
-            : NodeAnnotation{_genome, _sequence, _reverse_strand, _position},
-              annotationString{_annotationString} {}
-        RedundantNodeAnnotation(NodeAnnotation const & _annotation,
-                                std::string const & _annotationString)
-            : NodeAnnotation{_annotation}, annotationString{_annotationString} {}
-        std::string annotationString;
-    };*/
 
     //! Alias for a callback function used in node iteration
     using KmerAnnotationCallback = std::function<void(std::string const &,
@@ -108,9 +54,8 @@ public:
      * \param annotation Path to .row.annodbg file
      */
     MetagraphInterface(std::string const & graphFile,
-                       std::string const & annotationFile,
-                       std::string const & positionCorrectionFile)
-        : graph_{nullptr}, positionCorrection_{parse::parsePositionCorrectionFile(positionCorrectionFile)} {
+                       std::string const & annotationFile)
+        : graph_{nullptr} {
         // strip file endings from graph paths
         std::string filetype = ".dbg";
         std::string filebase =
@@ -127,13 +72,10 @@ public:
         if (!graph->load(filebase)) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- input file " + graphFile + " corrupted");
         }
-        //auto annotation = std::make_unique<mtg::annot::RowCompressed<std::string>>(0, false);
         auto annotation = std::make_unique<mtg::annot::ColumnCoordAnnotator>();
-        //if (!annotation->merge_load({annotationFilebase})) {
         if (!annotation->load(annotationFilebase+".column_coord.annodbg")) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- can't load annotations for graph "
                                      + filebase + ".dbg, file "
-                                     //+ annotationFilebase + ".row.annodbg corrupted");
                                      + annotationFilebase + ".column_coord.annodbg corrupted");
         }
         // store pointer to annotated graph
@@ -141,33 +83,7 @@ public:
         if (!graph_->check_compatibility()) {
             throw std::runtime_error("[ERROR] -- MetagraphInterface -- Graph and Annotation are incompatible.");
         }
-        std::cout << numNodes() << " nodes in graph " << graphFile << std::endl;        
-/*
-std::cout << "[DEBUG] -- Try Graph Iteration" << std::endl;
-graph_->get_graph().call_sequences(
-    [this](std::string const & contig, std::vector<NodeID> const & ids){
-        for (size_t i = 0; i <= contig.size() - graph_->get_graph().get_k(); ++i) {
-            auto kmer = contig.substr(i,graph_->get_graph().get_k());
-            std::cout << kmer << std::endl;
-
-            auto const & coords = graph_->get_kmer_coordinates({ids[i]}, -1, 0, 0); // std::vector<std::pair<std::string, std::vector<SmallVector<uint64_t>>>>
-            for (const auto & coord : coords) {
-                std::cout << "\t" << coord.first << "\t[";
-                assert(coord.second.size() == 1 && "there is only 1 k-mer");
-                const auto & cs = coord.second.at(0);
-                for (auto elem : cs) {
-                    std::cout << elem << ", ";
-                }
-                std::cout << "]" << std::endl;
-            }
-            std::cout << std::endl;
-        }
-        throw std::runtime_error("STOP");
-    });
-std::cout << "[DEBUG] -- Finished Graph Iteration" << std::endl;
-throw std::runtime_error("STOP");
-*/
-//throw std::runtime_error("STOP");
+        std::cout << numNodes() << " nodes in graph " << graphFile << std::endl;
     }
     //! Get annotation of a node
     std::vector<NodeAnnotation> getAnnotation(NodeID const nodeID) const {
@@ -178,15 +94,6 @@ throw std::runtime_error("STOP");
         }
         return coords;
     }
-    // ! Get redundant annotation of a node
-    /*std::vector<RedundantNodeAnnotation> getRedundantAnnotation(NodeID const nodeID) const {
-        auto const & coordinates = graph_->get_kmer_coordinates({nodeID}, -1, 0, 0);
-        std::vector<RedundantNodeAnnotation> coords;
-        for (std::string const & annotation : coordinates) {
-            coords.push_back(RedundantNodeAnnotation{parseLabel(annotation), label});
-        }
-        return coords;
-    }*/
     //! Get all incoming node IDs
     auto getIncoming(NodeID i) const { return getNeighbors(i, true); }
     //! Get value of k in the graph
@@ -200,10 +107,6 @@ throw std::runtime_error("STOP");
         //return getNodes(mergeLabel(annot));
         return getNodes(annot.sequence);
     }
-    // ! Get nodes that share an annotation
-    /*auto getNodes(RedundantNodeAnnotation const & annot) const {
-        return getNodes(annot.annotationString);
-    }*/
     //! Returns all NodeIDs from a sequence
     std::vector<NodeID> getNodes(std::string const & sequence) const {
         std::vector<NodeID> nodes;
@@ -247,18 +150,6 @@ throw std::runtime_error("STOP");
         });
     }
 
-    /*friend std::ostream& operator<<(std::ostream & out, NodeAnnotation const & annot) {
-        out << annot.sequence << ": [";
-        if (annot.positions.size()) {
-            out << annot.positions.front();
-            for (auto it = std::next(annot.positions.begin(), 1); it != annot.positions.end(); ++it) {
-                out << ", " << *it;
-            }
-        }
-        out << "]";
-        return out;
-    }*/
-
 private:
     //! callback function gets a k-mer and its node ID
     void iterateGraph(KmerCallback const & callback) const {
@@ -285,26 +176,16 @@ private:
         }
         return neighbours;
     }
-    //! Gets a NodeAnnotation and creates a metagraph label string
-    /*std::string mergeLabel(NodeAnnotation const & annotation) const {
-        return annotation.genome + "\1" + annotation.sequence + "\1"
-                + std::to_string(annotation.reverse_strand) + "\1"
-                + std::to_string(annotation.bin_idx);
-    }*/
     //! Gets a label string from metagraph and returns a NodeAnnotation object
     NodeAnnotation parseAnnotation(std::pair<std::string, std::vector<SmallVector<uint64_t>>> const & annotation) const {
         std::string const & sequence = annotation.first;
         std::vector<size_t> positions{};
-        for (auto&& pos : annotation.second.at(0)) {
-            positions.emplace_back(pos - positionCorrection_.at(sequence));
-        }
-        //positions.insert(positions.end(), annotation.second.at(0).begin(), annotation.second.at(0).end());
+        positions.insert(positions.end(), annotation.second.at(0).begin(), annotation.second.at(0).end());
         return NodeAnnotation{sequence, positions};
     }
 
     //! Pointer to the graph
     std::unique_ptr<mtg::graph::AnnotatedDBG const> graph_;
-    std::unordered_map<std::string, size_t> const positionCorrection_;
 };
 
 } // namespace mabl3

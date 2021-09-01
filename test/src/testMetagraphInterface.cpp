@@ -7,6 +7,7 @@
 #include <tbb/concurrent_queue.h>
 #include "loadExpectedTestdata.h"
 
+/* Output specializations for easier debugging in case of errors */
 template <typename V>
 std::ostream& operator<<(std::ostream & out, std::vector<V> vector) {
     out << "[";
@@ -60,34 +61,19 @@ inline bool mapEqual(T const & h1, T const & h2) {
 
 
 TEST_CASE("Metagraph Interface") {
+    std::cout << "[Test Case: Metagraph Interface]" << std::endl;
     // load graph
     std::string const testdatapath{TESTDATAPATH};
     auto graph = mabl3::MetagraphInterface(testdatapath + "/testdataGraph.dbg",
-                                           //testdatapath + "/testdataGraph.row.annodbg");
-                                           testdatapath + "/testdataGraph.column_coord.annodbg",
-                                           testdatapath + "/testdataGraph.positionCorrection.txt");
+                                           testdatapath + "/testdataGraph.column_coord.annodbg");
 
     // load expected data
     auto expectedKmers = getExpectedKmers();
     auto expectedKmerNeighbours = getExpectedNeighbours();
     std::cout << expectedKmers.size() << " kmers in test data" << std::endl;
-
-//std::cout << "[DEBUG] -- Kmer 0      ATCAAGTCTGCG: " << graph.getAnnotation( graph.getNode("ATCAAGTCTGCG") ) << std::endl;
-//std::cout << "[DEBUG] -- Kmer 10k-12 TTACTGATACGT: " << graph.getAnnotation( graph.getNode("TTACTGATACGT") ) << std::endl;
-//std::cout << "[DEBUG] -- Kmer 10k1   GCTCTCTGTAAG: " << graph.getAnnotation( graph.getNode("GCTCTCTGTAAG") ) << std::endl;
-//throw std::runtime_error("STOP");
-
     REQUIRE(graph.getK() == (size_t)12);
     SECTION("Check Iteration") {
-        /* / remove softmask and unknown
-        auto expectedCleanKmers = expectedKmers;
-        for (auto&& elem : expectedKmers) {
-            for (char c : elem.first) {
-                if (!(c == 'A' || c == 'C' || c == 'G' || c == 'T')) {
-                    expectedCleanKmers.erase(elem.first);
-                }
-            }
-        }*/
+        std::cout << "[Section: Check Iteration]" << std::endl;
         std::unordered_map<std::string, std::vector<mabl3::MetagraphInterface::NodeAnnotation>> observedKmers;
         auto callback = [&observedKmers](std::string const & kmer,
                                          std::vector<mabl3::MetagraphInterface::NodeAnnotation> const & occurrences) {
@@ -99,9 +85,6 @@ TEST_CASE("Metagraph Interface") {
         graph.iterateNodes(callback);
         auto tsend = std::chrono::system_clock::now();
         std::cout << "Iteration took " << std::chrono::duration_cast<std::chrono::seconds>(tsend - ts).count() << " s" << std::endl;
-        //std::cout << "Observed: " << observedKmers << std::endl;
-        //std::cout << "Expected: " << expectedKmers << std::endl;
-        //REQUIRE(expectedKmers == observedKmers);
         REQUIRE(mapEqual(expectedKmers, observedKmers));
         // --- Only kmer iteration ---
         std::unordered_set<std::string> expectedKmerSet;
@@ -117,34 +100,8 @@ TEST_CASE("Metagraph Interface") {
         std::cout << "Iteration (only kmers) took " << std::chrono::duration_cast<std::chrono::seconds>(ts2end - ts2).count() << " s" << std::endl;
         REQUIRE(expectedKmerSet == observedKmerSet);
     }
-/*    SECTION("Check Fast Iteration") {
-        std::unordered_map<std::string, std::vector<MetagraphInterface::NodeAnnotation>> observedKmers;
-        auto callback = [&observedKmers](std::string const & kmer,
-                                         std::vector<MetagraphInterface::NodeAnnotation> const & occurrences) {
-            auto occ = occurrences;
-            std::sort(occ.begin(), occ.end());
-            observedKmers.emplace(kmer, occ);
-        };
-        auto ts = std::chrono::system_clock::now();
-        graph.iterateNodes(callback, 0, 0, false, false);
-        auto tsend = std::chrono::system_clock::now();
-        std::cout << "Fast iteration took " << std::chrono::duration_cast<std::chrono::seconds>(tsend - ts).count() << " s" << std::endl;
-        REQUIRE(expectedKmers == observedKmers);
-        // --- Only kmer iteration ---
-        std::unordered_set<std::string> expectedKmerSet;
-        for (auto&& elem : expectedKmers) { expectedKmerSet.emplace(elem.first); }
-        std::unordered_set<std::string> observedKmerSet;
-        auto kmerCallback = [&observedKmerSet](std::string const & kmer, MetagraphInterface::NodeID nodeID) {
-            (void) nodeID;
-            observedKmerSet.emplace(kmer);
-        };
-        auto ts2 = std::chrono::system_clock::now();
-        graph.iterateNodes(kmerCallback);
-        auto ts2end = std::chrono::system_clock::now();
-        std::cout << "Fast iteration (only kmers) took " << std::chrono::duration_cast<std::chrono::seconds>(ts2end - ts2).count() << " s" << std::endl;
-        REQUIRE(expectedKmerSet == observedKmerSet);
-    } */
     SECTION("Check Queueing") {
+        std::cout << "[Section: Check Queueing]" << std::endl;
         tbb::concurrent_queue<std::pair<std::string, std::vector<mabl3::MetagraphInterface::NodeAnnotation>>> queue;
         graph.queueKmers(queue);
         std::unordered_map<std::string, std::vector<mabl3::MetagraphInterface::NodeAnnotation>> observedKmers;
@@ -157,6 +114,7 @@ TEST_CASE("Metagraph Interface") {
         REQUIRE(expectedKmers == observedKmers);
     }
     SECTION("Check Neighbours") {
+        std::cout << "[Section: Check Neighbours]" << std::endl;
         for (auto&& elem : expectedKmerNeighbours) {
             std::vector<std::string> observedIncoming;
             std::vector<std::string> observedOutgoing;
@@ -173,6 +131,7 @@ TEST_CASE("Metagraph Interface") {
         }
     }
     SECTION("Check Start Nodes") {
+        std::cout << "[Section: Check Start Nodes]" << std::endl;
         std::vector<std::string> expectedStart;
         for (auto&& elem : expectedKmerNeighbours) {
             if (elem.second.predecessors.size() == 1
@@ -189,10 +148,11 @@ TEST_CASE("Metagraph Interface") {
         REQUIRE(expectedStart == observedStart);
     }
     SECTION("Check Nodes from Annotation") {
+        std::cout << "[Section: Check Nodes from Annotation]" << std::endl;
         size_t i = 0;
         auto callback = [&graph, &i](std::string const & kmer,
                                      std::vector<mabl3::MetagraphInterface::NodeAnnotation> const & annotations) {
-            if (i < 10000) { // checking all nodes takes way too long
+            if (i < 1000) { // checking all nodes takes way too long
                 auto trueID = graph.getNode(kmer);
                 for (auto&& annotation : annotations) {
                     auto ids = graph.getNodes(annotation);
@@ -209,7 +169,7 @@ TEST_CASE("Metagraph Interface") {
         graph.iterateNodes(callback);
     }
     SECTION("Check Annotations") {
-        // test parseAllAnnotations
+        std::cout << "[Section: Check Annotations]" << std::endl;
         std::set<std::string> observedLabelSet;
         std::set<std::string> expectedLabelSet;
         for (auto&& elem : expectedKmers) {
@@ -220,30 +180,6 @@ TEST_CASE("Metagraph Interface") {
         graph.parseAllAnnotations([&observedLabelSet](std::string const & label){
             observedLabelSet.emplace(label);
         });
-        // all expeted sequences should be there
-        /*for (auto&& elem : expectedKmers) {
-            auto expectedAnnotations = elem.second;
-            auto observedAnnotations = graph.getAnnotation(graph.getNode(elem.first));
-            std::sort(expectedAnnotations.begin(), expectedAnnotations.end());
-            std::sort(observedAnnotations.begin(), observedAnnotations.end());
-            REQUIRE(expectedAnnotations == observedAnnotations);
-            for (auto&& annot : expectedAnnotations) { expectedAnnotationSet.emplace(annot); }
-            // check redundant annotations
-            / *auto observedRedundantAnnotation = graph.getRedundantAnnotation(graph.getNode(elem.first));
-            for (size_t i = 0; i < observedAnnotations.size(); ++i) {
-                auto const & annostr = observedRedundantAnnotation.at(i).annotationString;
-                auto parts = utils::split_string(annostr, "\1");
-                MetagraphInterface::NodeAnnotation reconstructed{parts.at(0),
-                                                                 parts.at(1),
-                                                                 static_cast<bool>(std::stoi(parts.at(2))),
-                                                                 static_cast<size_t>(std::stoi(parts.at(3)))};
-                REQUIRE(observedAnnotations.at(i).bin_idx == observedRedundantAnnotation.at(i).bin_idx);
-                REQUIRE(observedAnnotations.at(i).genome == observedRedundantAnnotation.at(i).genome);
-                REQUIRE(observedAnnotations.at(i).reverse_strand == observedRedundantAnnotation.at(i).reverse_strand);
-                REQUIRE(observedAnnotations.at(i).sequence == observedRedundantAnnotation.at(i).sequence);
-                REQUIRE(observedAnnotations.at(i) == reconstructed);
-            }* /
-        }*/
         REQUIRE(expectedLabelSet == observedLabelSet);
     }
 }
