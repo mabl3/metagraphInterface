@@ -19,6 +19,19 @@ public:
     struct NodeAnnotation {
         std::string sequence;          // fasta header without '> '
         std::vector<size_t> positions; // kmer positions in the sequence
+        bool compareSorted(NodeAnnotation const & rhs) const {
+            if (sequence == rhs.sequence
+                    && positions.size() == rhs.positions.size()) {
+                std::vector<size_t> thisPos{};
+                std::vector<size_t> rhsPos{};
+                thisPos.insert(thisPos.end(), positions.begin(), positions.end());
+                rhsPos.insert(rhsPos.end(), rhs.positions.begin(), rhs.positions.end());
+                std::sort(thisPos.begin(), thisPos.end());
+                std::sort(rhsPos.begin(), rhsPos.end());
+                return thisPos == rhsPos;
+            }
+            return false;
+        }
         bool operator==(NodeAnnotation const & rhs) const {
             return sequence == rhs.sequence
                     && positions == rhs.positions;
@@ -102,16 +115,39 @@ public:
     auto getKmer(NodeID i) const { return graph_->get_graph().get_node_sequence(i); }
     //! Get a node from a k-mer string
     NodeID getNode(std::string const & kmer) const { return graph_->get_graph().kmer_to_node(kmer); }
-    //! Get nodes that share an annotation
-    auto getNodes(NodeAnnotation const & annot) const {
-        //return getNodes(mergeLabel(annot));
-        return getNodes(annot.sequence);
-    }
     //! Returns all NodeIDs from a sequence
     std::vector<NodeID> getNodes(std::string const & sequence) const {
         std::vector<NodeID> nodes;
         auto callback = [&nodes](NodeID id) { nodes.emplace_back(id); };
         graph_->call_annotated_nodes(sequence, callback);
+        return nodes;
+    }
+    //! Returns all NodeIDs that have a sequence and a certain position annotated
+    std::vector<NodeID> getNodes(std::string const & sequence, size_t pos) const {
+        std::vector<NodeID> nodes{};
+        for (auto&& nodeID : getNodes(sequence)) {
+            for (auto&& annot : getAnnotation(nodeID)) {
+                if (annot.sequence == sequence
+                        && std::find(annot.positions.begin(), annot.positions.end(), pos) != annot.positions.end()) {
+                    nodes.emplace_back(nodeID);
+                }
+            }
+        }
+        return nodes;
+    }
+    std::vector<NodeID> getNodes(NodeAnnotation const & annot, size_t pos) const {
+        return getNodes(annot.sequence, pos);
+    }
+    //! Get nodes that share an annotation, positions vector needs to be complete!
+    auto getNodes(NodeAnnotation const & annot) const {
+        std::vector<NodeID> nodes{};
+        for (auto&& nodeID : getNodes(annot.sequence)) {
+            for (auto&& a : getAnnotation(nodeID)) {
+                if (annot.compareSorted(a)) {
+                    nodes.emplace_back(nodeID);
+                }
+            }
+        }
         return nodes;
     }
     //! Get all outgoing node IDs

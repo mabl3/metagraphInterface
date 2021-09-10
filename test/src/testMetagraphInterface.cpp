@@ -1,6 +1,8 @@
 #include <chrono>
 #include <iostream>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "catch2/catch.hpp"
 #include "MetagraphInterface.h"
@@ -57,6 +59,30 @@ inline bool mapEqual(T const & h1, T const & h2) {
     }
     return ret;
 }
+
+/* Custom Hash Functions for NodeAnnotation */
+inline void combineHash(size_t & seed, size_t hash) {
+    seed ^= hash + 0x9e3779b9 + (seed<<6) + (seed>>2);
+}
+
+struct AnnotationHash {
+    size_t operator()(mabl3::MetagraphInterface::NodeAnnotation const & a) const {
+        size_t seed = 0;
+        combineHash(seed, std::hash<std::string>{}(a.sequence));
+        for (auto&& pos : a.positions) {
+            combineHash(seed, std::hash<size_t>{}(pos));
+        }
+        return seed;
+    }
+};
+
+//! Implements operator() to check if two Link s are equal, ignores span and score
+struct AnnotationEqual {
+    bool operator()(mabl3::MetagraphInterface::NodeAnnotation const & lhs,
+                    mabl3::MetagraphInterface::NodeAnnotation const & rhs) const {
+        return lhs == rhs;
+    }
+};
 
 
 
@@ -148,20 +174,72 @@ TEST_CASE("Metagraph Interface") {
         REQUIRE(expectedStart == observedStart);
     }
     SECTION("Check Nodes from Annotation") {
+        // *** TODO: test getNode(s) functions ***
         std::cout << "[Section: Check Nodes from Annotation]" << std::endl;
+        std::unordered_map<std::string,
+                           std::unordered_set<mabl3::MetagraphInterface::NodeID>> seqToNodes{};
+        std::unordered_map<mabl3::MetagraphInterface::NodeAnnotation,
+                           std::unordered_set<mabl3::MetagraphInterface::NodeID>,
+                           AnnotationHash, AnnotationEqual> annoToNodes{};
+        std::unordered_map<mabl3::MetagraphInterface::NodeAnnotation,
+                           mabl3::MetagraphInterface::NodeID,
+                           AnnotationHash, AnnotationEqual> posToNode{};
+
+        // Fill maps with expected query results
+        auto callbackFill = [&graph,
+                             &seqToNodes,
+                             &annoToNodes,
+                             &posToNode](std::string const & kmer,
+                                         mabl3::MetagraphInterface::NodeID id) {
+            REQUIRE(graph.getNode(kmer) == id);
+            auto annotations = graph.getAnnotation(id);
+            for (auto&& annotation : annotations) {
+                seqToNodes[annotation.sequence].insert(id);
+                annoToNodes[annotation].insert(id);
+                for (auto&& pos : annotation.positions) {
+                    mabl3::MetagraphInterface::NodeAnnotation posAnno{annotation.sequence,
+                                                                      std::vector<mabl3::MetagraphInterface::NodeID>{pos}};
+                    REQUIRE(posToNode.find(posAnno) == posToNode.end()); // each position should be uniquely annotated
+                    posToNode[posAnno] = id;
+                }
+            }
+        };
+        graph.iterateNodes(callbackFill);
+
+        // check getNodes(seq) with sequenceToNodes
+        for (auto&& elem : seqToNodes) {
+            auto ids = graph.getNodes(elem.first);
+            std::unordered_set<mabl3::MetagraphInterface::NodeID> idSet{};
+            idSet.insert(ids.begin(), ids.end());
+            REQUIRE(idSet == elem.second);
+        }
+
+        // iterating over graph nodes, getting kmer and annotations per node, testing whether reverse querying works
         size_t i = 0;
-        auto callback = [&graph, &i](std::string const & kmer,
-                                     std::vector<mabl3::MetagraphInterface::NodeAnnotation> const & annotations) {
+        auto callback = [&graph, &i,
+                         &annoToNodes,
+                         &posToNode](std::string const & kmer,
+                                       std::vector<mabl3::MetagraphInterface::NodeAnnotation> const & annotations) {
             if (i < 1000) { // checking all nodes takes way too long
                 auto trueID = graph.getNode(kmer);
                 for (auto&& annotation : annotations) {
+                    for (auto&& pos : annotation.positions) {
+                        // test if seq+pos lead to correct id
+                        auto ids = graph.getNodes(annotation, pos);
+                        REQUIRE(ids.size() == 1);
+                        REQUIRE(ids.at(0) == trueID);
+                    }
+                    // get ids that share the exact annotation
                     auto ids = graph.getNodes(annotation);
-                    REQUIRE(std::find(ids.begin(), ids.end(), trueID) != ids.end());    // find trueID in ids
-                    for (auto&& id : ids) {
+                    std::unordered_set<mabl3::MetagraphInterface::NodeID> obsIDs{};
+                    obsIDs.insert(ids.begin(), ids.end());
+                    REQUIRE(obsIDs == annoToNodes.at(annotation));
+                    REQUIRE(obsIDs.find(trueID) != obsIDs.end());
+                    /*for (auto&& id : ids) {
                         std::unordered_set<std::string> seqs;
                         for (auto&& anno : graph.getAnnotation(id)) { seqs.insert(anno.sequence); }
                         REQUIRE(std::find(seqs.begin(), seqs.end(), annotation.sequence) != seqs.end());  // make sure all ids share the current sequence
-                    }
+                    }*/
                 }
                 ++i;
             }
