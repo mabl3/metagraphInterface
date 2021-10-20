@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <iostream>
+#include <unordered_map>
 #include <unordered_set>
 
 #include <tbb/concurrent_queue.h>
@@ -116,18 +117,18 @@ public:
     //! Get a node from a k-mer string
     NodeID getNode(std::string const & kmer) const { return graph_->get_graph().kmer_to_node(kmer); }
     //! Returns all NodeIDs from a sequence
-    std::vector<NodeID> getNodes(std::string const & sequence) const {
+    std::vector<NodeID> getNodes(std::string const & sequenceName) const {
         std::vector<NodeID> nodes;
         auto callback = [&nodes](NodeID id) { nodes.emplace_back(id); };
-        graph_->call_annotated_nodes(sequence, callback);
+        graph_->call_annotated_nodes(sequenceName, callback);
         return nodes;
     }
     //! Returns all NodeIDs that have a sequence and a certain position annotated
-    std::vector<NodeID> getNodes(std::string const & sequence, size_t pos) const {
+    std::vector<NodeID> getNodes(std::string const & sequenceName, size_t pos) const {
         std::vector<NodeID> nodes{};
-        for (auto&& nodeID : getNodes(sequence)) {
+        for (auto&& nodeID : getNodes(sequenceName)) {
             for (auto&& annot : getAnnotation(nodeID)) {
-                if (annot.sequence == sequence
+                if (annot.sequence == sequenceName
                         && std::find(annot.positions.begin(), annot.positions.end(), pos) != annot.positions.end()) {
                     nodes.emplace_back(nodeID);
                 }
@@ -175,7 +176,7 @@ public:
     //! Get number of nodes in the graph
     size_t numNodes() const { return graph_->get_graph().num_nodes(); }
     //! Get all annotations from metagraph and iterate over them, calling \c callback on each single label
-    void parseAllAnnotations(std::function<void(std::string const & sequence)> const & callback) const {
+    void parseAllAnnotations(std::function<void(std::string const &)> const & callback) const {
         auto const & annotation = graph_->get_annotation();
         for (auto&& label : annotation.get_all_labels()) { callback(label); }
     }
@@ -185,6 +186,35 @@ public:
             queue.push(std::pair<std::string, std::vector<NodeAnnotation>>(kmer, getAnnotation(id)));
         });
     }
+    auto reconstructSequence(std::string const & sequenceName) const {
+        std::unordered_map<size_t, std::string> posToKmer;
+        size_t maxPos = 0;
+        //size_t k = getK();
+        for (auto const & node : getNodes(sequenceName)) {
+            auto kmer = getKmer(node);
+            for (auto const & annot : getAnnotation(node)) {
+                if (annot.sequence == sequenceName) {
+                    for (auto const & pos : annot.positions) {
+                        posToKmer[pos] = kmer;
+                        maxPos = (pos > maxPos) ? pos : maxPos;
+                    }
+                }
+            }
+        }
+        std::string sequence{};
+        size_t i{0};
+        while (i <= maxPos) {
+            if (posToKmer.find(i) == posToKmer.end() && i == sequence.size()) {
+                sequence += "N";
+            } else if (posToKmer.find(i) != posToKmer.end()) {
+                auto j = sequence.size() - i; // i should never be >sequence.size()
+                sequence += posToKmer[i].substr(j);
+            }
+            ++i;
+        }
+        return sequence;
+    }
+    auto reconstructSequence(NodeAnnotation const & annot) const { return reconstructSequence(annot.sequence); }
 
 private:
     //! callback function gets a k-mer and its node ID

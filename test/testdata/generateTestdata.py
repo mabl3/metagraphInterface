@@ -131,7 +131,7 @@ def generateSimilarSequence(inputSeq, similarity, caseSensitive=caseSensitive):
 
         newBase = random.choices(["A","C","G","T"], weights=p)[0]
         # from time to time, insert a softmask or unknown
-        insertBase = random.choices([newBase, "N", newBase.lower()], weights=[0.99998, 0.00001, 0.00001])[0]
+        insertBase = random.choices([newBase, "N", newBase.lower()], weights=[0.998, 0.001, 0.001])[0]
         # if not DNA_CASE_SENSITIVE, omit softmask (as metagraph would convert lower case to upper case)
         insertBase = "N" if not caseSensitive and insertBase == newBase.lower() else insertBase
 

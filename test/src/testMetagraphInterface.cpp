@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iostream>
+#include <regex>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -96,6 +97,7 @@ TEST_CASE("Metagraph Interface") {
     // load expected data
     auto expectedKmers = getExpectedKmers();
     auto expectedKmerNeighbours = getExpectedNeighbours();
+    auto expectedSequences = getSequences();
     std::cout << expectedKmers.size() << " kmers in test data" << std::endl;
     REQUIRE(graph.getK() == (size_t)12);
     SECTION("Check Iteration") {
@@ -172,6 +174,71 @@ TEST_CASE("Metagraph Interface") {
         std::sort(expectedStart.begin(), expectedStart.end());
         std::sort(observedStart.begin(), observedStart.end());
         REQUIRE(expectedStart == observedStart);
+    }
+    SECTION("Check Sequence Reconstruction") {
+        std::cout << "[Section: Check Sequence Reconstruction]" << std::endl;
+
+        auto debug = [&graph](std::string const & seqName,
+                              std::string const & exp, std::string const & obs) {
+            std::cout << seqName << std::endl;
+            std::unordered_map<size_t, std::string> posToKmer;
+            size_t maxPos = 0;
+            for (auto const & node : graph.getNodes(seqName)) {
+                auto kmer = graph.getKmer(node);
+                for (auto const & annot : graph.getAnnotation(node)) {
+                    if (annot.sequence == seqName) {
+                        for (auto const & pos : annot.positions) {
+                            posToKmer[pos] = kmer;
+                            maxPos = (pos > maxPos) ? pos : maxPos;
+                        }
+                    }
+                }
+            }
+            for (size_t j{0}; j <= maxPos; ++j) {
+                auto kmer = (posToKmer.find(j) != posToKmer.end()) ? posToKmer[j] : "            ";
+                std::cout << kmer << " -- " << j << std::endl;
+            }
+
+            size_t i = 0;
+            auto& bigger = (exp.size() > obs.size()) ? exp : obs;
+            while (i < bigger.size()) {
+                auto esub = (i < exp.size()) ? exp.substr(i, 100) : "";
+                auto osub = (i < obs.size()) ? obs.substr(i, 100) : "";
+                std::string diff{};
+                for (size_t i{0}; i < esub.size(); ++i) {
+                    if (esub[i] != osub[i]) {
+                        diff += "|";
+                    } else {
+                        diff += " ";
+                    }
+                }
+                std::cout << "expected: " << esub << std::endl;
+                std::cout << "          " << diff << std::endl;
+                std::cout << "observed: " << osub << std::endl << std::endl;
+                i += 100;
+            }
+        };
+
+        for (auto const & elem : expectedSequences) {
+            auto reconstructedSequence = graph.reconstructSequence(elem.first);
+            if (elem.second != reconstructedSequence) {
+                //debug(elem.first, elem.second, reconstructedSequence);
+                // it may happen that the sequence is e.g. ...NACTAGCN...,
+                //   graph with k>6 cannot know the sequence between the N's
+                //   thus only check kmers without non-ACGT characters
+                auto k = graph.getK();
+                for (size_t i{0}; i < elem.second.size()-k+1; ++i) {
+                    auto kmerExp = elem.second.substr(i,k);
+                    if (std::regex_search(kmerExp, std::regex{"^[ACGT]+$"})) {
+                        REQUIRE(reconstructedSequence.size() >= i+k);
+                        REQUIRE(kmerExp == reconstructedSequence.substr(i,k));
+                    }
+                }
+            } else {
+                REQUIRE(elem.second == reconstructedSequence); // for clarity
+            }
+
+        }
     }
     SECTION("Check Nodes from Annotation") {
         // *** TODO: test getNode(s) functions ***
