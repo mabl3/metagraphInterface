@@ -161,17 +161,17 @@ public:
     }
     //! Direct access to the graph
     auto const & graph() const { return graph_; }
-    //! Iterate over all nodes in the graph, calling \c callback for each node
+    //! Iterate over all nodes in the graph, calling \c callback for each node. If nthreads > 1, handle any concurrency manually!
     /*! Iterates over all kmers in the graph without filtering */
-    void iterateNodes(KmerAnnotationCallback const & callback) const {
+    void iterateNodes(KmerAnnotationCallback const & callback, size_t nthreads = 1) const {
         iterateGraph([this, &callback](std::string const & kmer, NodeID id){
             callback(kmer, getAnnotation(id));
-        });
+        }, nthreads);
     }
-    //! This overload only returns the kmer string and its NodeID to callback
+    //! This overload only returns the kmer string and its NodeID to callback. If nthreads > 1, handle any concurrency manually!
     /*! Iterates over all kmers in the graph without filtering */
-    void iterateNodes(KmerCallback const & callback) const {
-        iterateGraph(callback);
+    void iterateNodes(KmerCallback const & callback, size_t nthreads = 1) const {
+        iterateGraph(callback, nthreads);
     }
     //! Get number of nodes in the graph
     size_t numNodes() const { return graph_->get_graph().num_nodes(); }
@@ -181,10 +181,10 @@ public:
         for (auto&& label : annotation.get_all_labels()) { callback(label); }
     }
     //! Push all k-mers on a tbb::concurrent_queue so multiple threads can work with them
-    void queueKmers(tbb::concurrent_queue<std::pair<std::string, std::vector<NodeAnnotation>>> & queue) const {
+    void queueKmers(tbb::concurrent_queue<std::pair<std::string, std::vector<NodeAnnotation>>> & queue) {
         iterateGraph([this, &queue](std::string const & kmer, NodeID id){
             queue.push(std::pair<std::string, std::vector<NodeAnnotation>>(kmer, getAnnotation(id)));
-        });
+        }, 1); // do not iterate parallel
     }
     auto reconstructSequence(std::string const & sequenceName) const {
         std::unordered_map<size_t, std::string> posToKmer;
@@ -218,7 +218,7 @@ public:
 
 private:
     //! callback function gets a k-mer and its node ID
-    void iterateGraph(KmerCallback const & callback) const {
+    void iterateGraph(KmerCallback const & callback, size_t nthreads) const {
         auto k = getK();
         graph_->get_graph().call_sequences([this,
                                             &callback,
@@ -227,7 +227,8 @@ private:
             for (size_t i = 0; i <= contig.size() - k; ++i) {
                 callback(contig.substr(i,k), ids[i]);
             }
-        });
+        },
+        nthreads);
     }
     //! Get all incoming or outcoming \c NodeID s of a certain node
     std::vector<NodeID> getNeighbors(NodeID i, bool incoming) const {

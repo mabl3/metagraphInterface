@@ -1,7 +1,10 @@
+#include <atomic>
 #include <chrono>
 #include <iostream>
+#include <mutex>
 #include <regex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -93,6 +96,8 @@ TEST_CASE("Metagraph Interface") {
     std::string const testdatapath{TESTDATAPATH};
     auto graph = mabl3::MetagraphInterface(testdatapath + "/testdataGraph.dbg",
                                            testdatapath + "/testdataGraph.column_coord.annodbg");
+    auto nthreads = std::thread::hardware_concurrency(); // iterate graph in parallel, make sure to handle concurrency!
+    std::mutex mutex;
 
     // load expected data
     auto expectedKmers = getExpectedKmers();
@@ -103,14 +108,16 @@ TEST_CASE("Metagraph Interface") {
     SECTION("Check Iteration") {
         std::cout << "[Section: Check Iteration]" << std::endl;
         std::unordered_map<std::string, std::vector<mabl3::MetagraphInterface::NodeAnnotation>> observedKmers;
-        auto callback = [&observedKmers](std::string const & kmer,
-                                         std::vector<mabl3::MetagraphInterface::NodeAnnotation> const & occurrences) {
+        auto callback = [&observedKmers, &mutex](std::string const & kmer,
+                                                 std::vector<mabl3::MetagraphInterface::NodeAnnotation> const & occurrences) {
             auto occ = occurrences;
             std::sort(occ.begin(), occ.end());
+            std::unique_lock<std::mutex> lock(mutex);
             observedKmers.emplace(kmer, occ);
+            lock.unlock();
         };
         auto ts = std::chrono::system_clock::now();
-        graph.iterateNodes(callback);
+        graph.iterateNodes(callback, nthreads);
         auto tsend = std::chrono::system_clock::now();
         std::cout << "Iteration took " << std::chrono::duration_cast<std::chrono::seconds>(tsend - ts).count() << " s" << std::endl;
         REQUIRE(mapEqual(expectedKmers, observedKmers));
@@ -118,12 +125,14 @@ TEST_CASE("Metagraph Interface") {
         std::unordered_set<std::string> expectedKmerSet;
         for (auto&& elem : expectedKmers) { expectedKmerSet.emplace(elem.first); }
         std::unordered_set<std::string> observedKmerSet;
-        auto kmerCallback = [&observedKmerSet](std::string const & kmer, mabl3::MetagraphInterface::NodeID nodeID) {
+        auto kmerCallback = [&observedKmerSet, &mutex](std::string const & kmer, mabl3::MetagraphInterface::NodeID nodeID) {
             (void) nodeID;
+            std::unique_lock<std::mutex> lock(mutex);
             observedKmerSet.emplace(kmer);
+            lock.unlock();
         };
         auto ts2 = std::chrono::system_clock::now();
-        graph.iterateNodes(kmerCallback);
+        graph.iterateNodes(kmerCallback, nthreads);
         auto ts2end = std::chrono::system_clock::now();
         std::cout << "Iteration (only kmers) took " << std::chrono::duration_cast<std::chrono::seconds>(ts2end - ts2).count() << " s" << std::endl;
         REQUIRE(expectedKmerSet == observedKmerSet);
@@ -256,22 +265,28 @@ TEST_CASE("Metagraph Interface") {
         auto callbackFill = [&graph,
                              &seqToNodes,
                              &annoToNodes,
-                             &posToNode](std::string const & kmer,
-                                         mabl3::MetagraphInterface::NodeID id) {
+                             &posToNode,
+                             &mutex](std::string const & kmer,
+                                     mabl3::MetagraphInterface::NodeID id) {
+            std::unique_lock<std::mutex> lock(mutex, std::defer_lock);
             REQUIRE(graph.getNode(kmer) == id);
             auto annotations = graph.getAnnotation(id);
             for (auto&& annotation : annotations) {
+                lock.lock();
                 seqToNodes[annotation.sequence].insert(id);
                 annoToNodes[annotation].insert(id);
+                lock.unlock();
                 for (auto&& pos : annotation.positions) {
                     mabl3::MetagraphInterface::NodeAnnotation posAnno{annotation.sequence,
                                                                       std::vector<mabl3::MetagraphInterface::NodeID>{pos}};
                     REQUIRE(posToNode.find(posAnno) == posToNode.end()); // each position should be uniquely annotated
+                    lock.lock();
                     posToNode[posAnno] = id;
+                    lock.unlock();
                 }
             }
         };
-        graph.iterateNodes(callbackFill);
+        graph.iterateNodes(callbackFill, nthreads);
 
         // check getNodes(seq) with sequenceToNodes
         for (auto&& elem : seqToNodes) {
@@ -282,10 +297,10 @@ TEST_CASE("Metagraph Interface") {
         }
 
         // iterating over graph nodes, getting kmer and annotations per node, testing whether reverse querying works
-        size_t i = 0;
+        //size_t i = 0;
+        std::atomic<size_t> i{0};
         auto callback = [&graph, &i,
-                         &annoToNodes,
-                         &posToNode](std::string const & kmer,
+                         &annoToNodes](std::string const & kmer,
                                        std::vector<mabl3::MetagraphInterface::NodeAnnotation> const & annotations) {
             if (i < 1000) { // checking all nodes takes way too long
                 auto trueID = graph.getNode(kmer);
@@ -311,7 +326,7 @@ TEST_CASE("Metagraph Interface") {
                 ++i;
             }
         };
-        graph.iterateNodes(callback);
+        graph.iterateNodes(callback, nthreads);
     }
     SECTION("Check Annotations") {
         std::cout << "[Section: Check Annotations]" << std::endl;
