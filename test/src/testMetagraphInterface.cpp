@@ -107,6 +107,7 @@ TEST_CASE("Metagraph Interface") {
     REQUIRE(graph.getK() == (size_t)12);
     SECTION("Check Iteration") {
         std::cout << "[Section: Check Iteration]" << std::endl;
+
         std::unordered_map<std::string, std::vector<mabl3::MetagraphInterface::NodeAnnotation>> observedKmers;
         auto callback = [&observedKmers, &mutex](std::string const & kmer,
                                                  std::vector<mabl3::MetagraphInterface::NodeAnnotation> const & occurrences) {
@@ -119,8 +120,68 @@ TEST_CASE("Metagraph Interface") {
         auto ts = std::chrono::system_clock::now();
         graph.iterateNodes(callback, nthreads);
         auto tsend = std::chrono::system_clock::now();
-        std::cout << "Iteration took " << std::chrono::duration_cast<std::chrono::seconds>(tsend - ts).count() << " s" << std::endl;
+        std::cout << "Iteration took " << std::chrono::duration_cast<std::chrono::seconds>(tsend - ts).count() << " s" << std::endl;        
         REQUIRE(mapEqual(expectedKmers, observedKmers));
+
+        // --- Batch Iteration ---
+        std::unordered_map<std::string, std::vector<mabl3::MetagraphInterface::NodeAnnotation>> observedKmersBatch;
+        auto batchCallback = [&observedKmersBatch,
+                              &graph,
+                              &mutex](std::vector<std::string> const & kmers,
+                                      std::vector<std::vector<mabl3::MetagraphInterface::NodeAnnotation>> const & annotations) {
+            REQUIRE(kmers.size() == annotations.size());
+            for (size_t i{0}; i < kmers.size(); ++i) {
+                auto occ = annotations.at(i);
+                std::sort(occ.begin(), occ.end());
+                std::unique_lock<std::mutex> lock(mutex);
+                observedKmersBatch.emplace(kmers.at(i), occ);
+                lock.unlock();
+            }
+        };
+        ts = std::chrono::system_clock::now();
+        graph.iterateNodes(batchCallback, nthreads);
+        tsend = std::chrono::system_clock::now();
+        std::cout << "Batch iteration took " << std::chrono::duration_cast<std::chrono::seconds>(tsend - ts).count() << " s" << std::endl;
+        REQUIRE(mapEqual(expectedKmers, observedKmersBatch));
+
+        // --- Raw Iteration ---
+        std::unordered_map<std::string, std::vector<mabl3::MetagraphInterface::NodeAnnotation>> observedKmersRaw;
+        auto rawCallback = [&observedKmersRaw,
+                            &graph,
+                            &mutex](std::vector<std::string> const & kmers,
+                                    std::vector<std::pair<std::string,
+                                                          std::vector<SmallVector<uint64_t>>>> const & annotations) {
+            std::unordered_map<std::string, std::unordered_map<std::string, std::vector<size_t>>> kmerToSeqToPos;
+            //REQUIRE(kmers.size() == annotations.size());
+            //for (size_t i{0}; i < kmers.size(); ++i) {
+            for (auto&& rawAnnot : annotations) {
+                auto const & seq = rawAnnot.first;
+                REQUIRE(kmers.size() == rawAnnot.second.size());
+                for (size_t i{0}; i < kmers.size(); ++i) {
+                    if (rawAnnot.second.at(i).size() > 0) {
+                        kmerToSeqToPos[kmers.at(i)][seq].insert(kmerToSeqToPos[kmers.at(i)][seq].end(),
+                                                                rawAnnot.second.at(i).begin(), rawAnnot.second.at(i).end());
+                    }
+                }
+            }
+            for (auto&& elem : kmerToSeqToPos) {
+                std::vector<mabl3::MetagraphInterface::NodeAnnotation> occ{};
+                for (auto&& sp : elem.second) {
+                    mabl3::MetagraphInterface::NodeAnnotation annot{sp.first, sp.second};
+                    occ.emplace_back(annot);
+                }
+                std::sort(occ.begin(), occ.end());
+                std::unique_lock<std::mutex> lock(mutex);
+                observedKmersRaw.emplace(elem.first, occ);
+                lock.unlock();
+            }
+        };
+        ts = std::chrono::system_clock::now();
+        graph.iterateNodes(rawCallback, nthreads);
+        tsend = std::chrono::system_clock::now();
+        std::cout << "Raw iteration took " << std::chrono::duration_cast<std::chrono::seconds>(tsend - ts).count() << " s" << std::endl;
+        REQUIRE(mapEqual(expectedKmers, observedKmersRaw));
+
         // --- Only kmer iteration ---
         std::unordered_set<std::string> expectedKmerSet;
         for (auto&& elem : expectedKmers) { expectedKmerSet.emplace(elem.first); }

@@ -14,6 +14,18 @@
 
 namespace mabl3 {
 
+template <typename V>
+void printVector(V const & v) {
+    std::cout << "[";
+    if (v.size() > 0) {
+        std::cout << v.at(0);
+        for (size_t i{1}; i < v.size(); ++i) {
+            std::cout << ", " << v.at(i);
+        }
+    }
+    std::cout << "]";
+}
+
 class MetagraphInterface {
 public:
     //! Annotation of a node returned from metagraph
@@ -61,6 +73,17 @@ public:
     using NodeID = mtg::graph::DeBruijnGraph::node_index;
     //! Alias for a callback function used in node iteration
     using KmerCallback = std::function<void(std::string const &, NodeID)>;
+    //! Alias for a callback function used in node iteration
+    using ContigCallback = std::function<void(std::vector<std::string> const &,
+                                              std::vector<NodeID> const &)>;
+    //! Alias for a callback function used in node iteration
+    using ContigAnnotationCallback = std::function<void(std::vector<std::string> const &,
+                                                        std::vector<std::vector<NodeAnnotation>> const &)>;
+    //! Alias for a callback function used in node iteration
+    using ContigAnnotationRawCallback = std::function<void(std::vector<std::string> const &, // kmers
+                                                           std::vector<
+                                                               std::pair<std::string,        // sequence, [[pos for kmer0], [pos for kmer1], ...]
+                                                                         std::vector<SmallVector<uint64_t>>>> const &)>;
 
     //! c'tor, loads the graph
     /*!
@@ -107,6 +130,22 @@ public:
             coords.push_back(parseAnnotation(annotation));
         }
         return coords;
+    }
+    //! Get annotations of a list of nodes
+    std::vector<std::vector<NodeAnnotation>> getAnnotation(std::vector<NodeID> const & nodeIDs) const {
+        auto const & coordinates = graph_->get_kmer_coordinates(nodeIDs, -1, 0, 0);
+        std::vector<std::vector<NodeAnnotation>> annotations(nodeIDs.size()); // init with same size as nodeIDs
+        for (auto&& coord : coordinates) {
+            auto const & seq = coord.first;
+            for (size_t i{0}; i < coord.second.size(); ++i) {
+                if (coord.second[i].size() > 0) {
+                    std::vector<size_t> positions{};
+                    positions.insert(positions.end(), coord.second[i].begin(), coord.second[i].end());
+                    annotations.at(i).emplace_back(NodeAnnotation{seq, positions});
+                }
+            }
+        }
+        return annotations;
     }
     //! Get all incoming node IDs
     auto getIncoming(NodeID i) const { return getNeighbors(i, true); }
@@ -173,6 +212,23 @@ public:
     void iterateNodes(KmerCallback const & callback, size_t nthreads = 1) const {
         iterateGraph(callback, nthreads);
     }
+    //! This overload returns all kmer strings and the respective NodeIDs of a contig to callback. If nthreads > 1, handle any concurrency manually!
+    /*! Iterates over all kmers in the graph without filtering */
+    void iterateNodes(ContigAnnotationCallback const & callback, size_t nthreads = 1) const {
+        iterateGraph([this, &callback](std::vector<std::string> const & kmers,
+                                       std::vector<NodeID> const & ids) {
+            callback(kmers, getAnnotation(ids));
+        }, nthreads);
+    }
+    //! This overload returns all kmer strings and the respective raw annotations to callback. If nthreads > 1, handle any concurrency manually!
+    /*! Iterates over all kmers in the graph without filtering */
+    void iterateNodes(ContigAnnotationRawCallback const & callback, size_t nthreads = 1) const {
+        iterateGraph([this, &callback](std::vector<std::string> const & kmers,
+                                       std::vector<NodeID> const & ids) {
+            callback(kmers, graph_->get_kmer_coordinates(ids, -1, 0, 0));
+        }, nthreads);
+    }
+
     //! Get number of nodes in the graph
     size_t numNodes() const { return graph_->get_graph().num_nodes(); }
     //! Get all annotations from metagraph and iterate over them, calling \c callback on each single label
@@ -227,6 +283,21 @@ private:
             for (size_t i = 0; i <= contig.size() - k; ++i) {
                 callback(contig.substr(i,k), ids[i]);
             }
+        },
+        nthreads);
+    }
+    //! callback function gets a vector of k-mers and a vector of the respective node IDs
+    void iterateGraph(ContigCallback const & callback, size_t nthreads) const {
+        auto k = getK();
+        graph_->get_graph().call_sequences([this,
+                                            &callback,
+                                            k](std::string const & contig,
+                                               std::vector<NodeID> const & ids){
+            std::vector<std::string> kmers{};
+            for (size_t i = 0; i <= contig.size() - k; ++i) {
+                kmers.emplace_back(contig.substr(i,k));
+            }
+            callback(kmers, ids);
         },
         nthreads);
     }
