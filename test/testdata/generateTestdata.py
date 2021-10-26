@@ -203,7 +203,7 @@ for kmer in kmers:
         if nextKmer in kmers:
             kmerNeighbours[kmer]["next"].append(nextKmer)
     
-    assert((len(kmerNeighbours[kmer]["prev"]) > 0) or (len(kmerNeighbours[kmer]["next"]) > 0))
+    assert((len(kmerNeighbours[kmer]["prev"]) > 0) or (len(kmerNeighbours[kmer]["next"]) > 0)), str(kmer)+" prev: "+str((kmerNeighbours[kmer]['prev']))+", next: "+str((kmerNeighbours[kmer]['next']))
     # also insert dummy nodes
     if len(kmerNeighbours[kmer]["prev"]) == 0:
         kmerNeighbours[kmer]["prev"] = ["$" + kmer[0:(k-1)]]
