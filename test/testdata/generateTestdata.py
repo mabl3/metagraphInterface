@@ -105,7 +105,10 @@ with open(mg_cc, "r") as fh:
                     alphabet = "ACGTNacgt"
                     caseSensitive = True
                 else:
-                    sys.exit("Could not determine Metagraph alphabet")
+                    sys.exit("Could not determine Metagraph alphabet (typestr: '"+str(typestr)+"')")
+
+assert alphabet != "", "alphabet: '"+alphabet+"'"
+print("[DEBUG] -- alphabet:", alphabet)
 
 def generateSequence(seqLength):
     return("".join(random.choices(["A","C","G","T"], k=seqLength)))
@@ -165,10 +168,13 @@ def sequenceName(sid, gid):
     return("sequence"+str(sid)+"_genome"+str(gid))
 
 kmers = dict()
+seqToIds = dict()
 for gid in sequences:
     for sid in sequences[gid]:
         seq = sequences[gid][sid]
         seqname = sequenceName(sid, gid)
+        assert seqname not in seqToIds
+        seqToIds[seqname] = (gid, sid)
         for i in range(0, len(seq)-k+1):
             kmer = seq[i:(i+k)]
             assert(len(kmer) == k)
@@ -182,6 +188,9 @@ for gid in sequences:
                     
                 kmers[kmer][seqname].append(i) # collect positions of that kmer in that sequence
 
+            #else:
+            #    print("[DEBUG]", kmer, "not in alphabet", alphabet)
+
 # condense sequence and position info into flat lists to resemble NodeAnnotation in C++
 for kmer in kmers:
     seqset = dict(kmers[kmer])
@@ -192,7 +201,8 @@ for kmer in kmers:
 kmerNeighbours = dict()
 for kmer in kmers:
     kmerNeighbours[kmer] = {"prev": [], "next": []}
-    for b in ["A","C","G","T","N","a","c","g","t"]:
+    #for b in ["A","C","G","T","N","a","c","g","t"]:
+    for b in alphabet:
         prevKmer = b + kmer[0:(k-1)]
         nextKmer = kmer[1:k] + b
         assert(len(prevKmer) == k)
@@ -203,7 +213,21 @@ for kmer in kmers:
         if nextKmer in kmers:
             kmerNeighbours[kmer]["next"].append(nextKmer)
     
-    assert((len(kmerNeighbours[kmer]["prev"]) > 0) or (len(kmerNeighbours[kmer]["next"]) > 0)), str(kmer)+" prev: "+str((kmerNeighbours[kmer]['prev']))+", next: "+str((kmerNeighbours[kmer]['next']))
+    # assert neighbours -- may happen that kmers are enclosed in N, in this case no neighbours possible
+    if len(kmerNeighbours[kmer]["prev"]) == 0 and len(kmerNeighbours[kmer]["next"]) == 0:
+        ids = seqToIds[kmers[kmer][0][0]]
+        pos = kmers[kmer][0][1][0]
+        seq = sequences[ids[0]][ids[1]]
+        assert pos >= 0
+        assert pos <= len(seq)-k
+        sec = seq[max(0,pos-1):min(len(seq),pos+k+1)]
+        if pos > 0:
+            assert seq[pos-1] not in alphabet, sec+" -- "+kmer
+        if pos+k < len(seq):
+            assert seq[pos+k] not in alphabet, sec+" -- "+kmer
+    else:
+        assert((len(kmerNeighbours[kmer]["prev"]) > 0) or (len(kmerNeighbours[kmer]["next"]) > 0)), str(kmer)+" prev: "+str((kmerNeighbours[kmer]['prev']))+", next: "+str((kmerNeighbours[kmer]['next']))
+
     # also insert dummy nodes
     if len(kmerNeighbours[kmer]["prev"]) == 0:
         kmerNeighbours[kmer]["prev"] = ["$" + kmer[0:(k-1)]]
